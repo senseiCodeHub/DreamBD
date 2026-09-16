@@ -10041,3 +10041,521 @@ body, .p2p-input, .gp-b-transfer-input, .gp-modal-input, .ba-input, .gp-preset-b
         padding-bottom: 80px;
     }
 }
+
+/* ===== ENHANCED HOME DESIGN ===== */
+
+/* Hero Background Floating Orbs */
+.home-hero-bg-shapes {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.hero-orb {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(80px);
+    opacity: 0.35;
+    animation: heroOrbFloat 12s ease-in-out infinite alternate;
+}
+
+.hero-orb-1 {
+    width: 500px;
+    height: 500px;
+    background: radial-gradient(circle, rgba(59, 130, 246, 0.6), transparent 70%);
+    top: -15%;
+    right: -10%;
+    animation-delay: 0s;
+}
+
+.hero-orb-2 {
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, rgba(168, 85, 247, 0.5), transparent 70%);
+    bottom: -10%;
+    left: -8%;
+    animation-delay: -4s;
+}
+
+.hero-orb-3 {
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(14, 165, 233, 0.45), transparent 70%);
+    top: 40%;
+    left: 50%;
+    animation-delay: -8s;
+}
+
+@keyframes heroOrbFloat {
+    0% { transform: translate(0, 0) scale(1); }
+    33% { transform: translate(30px, -20px) scale(1.05); }
+    66% { transform: translate(-20px, 15px) scale(0.95); }
+    100% { transform: translate(10px, -10px) scale(1.02); }
+}
+
+/* Hero slide entrance animations */
+.home-slide.active .home-tournament-slide,
+.home-slide.active .home-leaderboard-text,
+.home-slide.active .home-ad-content,
+.home-slide.active .home-features-left {
+    animation: heroContentReveal 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes heroContentReveal {
+    from { opacity: 0; transform: translateY(30px) scale(0.97); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Floating animation for particles */
+.home-slide-bg-particles .particle {
+    animation: particleFloat 6s ease-in-out infinite;
+}
+
+.home-slide-bg-particles .particle:nth-child(2) { animation-delay: -1s; }
+.home-slide-bg-particles .particle:nth-child(3) { animation-delay: -2s; }
+.home-slide-bg-particles .particle:nth-child(4) { animation-delay: -3s; }
+.home-slide-bg-particles .particle:nth-child(5) { animation-delay: -4s; }
+.home-slide-bg-particles .particle:nth-child(6) { animation-delay: -5s; }
+
+@keyframes particleFloat {
+    0%, 100% { transform: translateY(0) translateX(0) scale(1); opacity: 0.6; }
+    25% { transform: translateY(-20px) translateX(10px) scale(1.1); opacity: 0.8; }
+    50% { transform: translateY(-10px) translateX(-5px) scale(0.9); opacity: 0.5; }
+    75% { transform: translateY(-25px) translateX(8px) scale(1.05); opacity: 0.7; }
+}
+
+/* ===== TOURNAMENT CARDS ===== */
+.home-showcase-grid--tournaments {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1.25rem;
+}
+
+.home-tournament-card {
+    position: relative;
+    border-radius: 20px;
+    padding: 1.5rem;
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    overflow: hidden;
+}
+
+.home-tournament-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    border-radius: 20px 20px 0 0;
+}
+
+.home-tournament-card--blue::before {
+    background: linear-gradient(90deg, #3b82f6, #06b6d4);
+}
+
+.home-tournament-card--purple::before {
+    background: linear-gradient(90deg, #8b5cf6, #ec4899);
+}
+
+.home-tournament-card--green::before {
+    background: linear-gradient(90deg, #10b981, #34d399);
+}
+
+.home-tournament-card--orange::before {
+    background: linear-gradient(90deg, #f97316, #fbbf24);
+}
+
+.home-tournament-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+    border-color: transparent;
+}
+
+.home-tournament-card-top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.home-tournament-card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    color: #fff;
+}
+
+.home-tournament-card--blue .home-tournament-card-icon {
+    background: linear-gradient(135deg, #3b82f6, #06b6d4);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.3);
+}
+
+.home-tournament-card--purple .home-tournament-card-icon {
+    background: linear-gradient(135deg, #8b5cf6, #ec4899);
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.3);
+}
+
+.home-tournament-card--green .home-tournament-card-icon {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
+}
+
+.home-tournament-card--orange .home-tournament-card-icon {
+    background: linear-gradient(135deg, #f97316, #fbbf24);
+    box-shadow: 0 4px 16px rgba(249, 115, 22, 0.3);
+}
+
+.home-tournament-card-status {
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.08);
+    color: #3b82f6;
+    text-transform: uppercase;
+}
+
+.home-tournament-card--purple .home-tournament-card-status {
+    background: rgba(139, 92, 246, 0.08);
+    color: #8b5cf6;
+}
+
+.home-tournament-card--green .home-tournament-card-status {
+    background: rgba(16, 185, 129, 0.08);
+    color: #10b981;
+}
+
+.home-tournament-card--orange .home-tournament-card-status {
+    background: rgba(249, 115, 22, 0.08);
+    color: #f97316;
+}
+
+.home-tournament-card-title {
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text-primary, #1e293b);
+    margin: 0 0 0.4rem;
+    line-height: 1.3;
+}
+
+.home-tournament-card-desc {
+    font-size: 0.88rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0 0 1rem;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.home-tournament-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+.home-tournament-card-meta span {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.82rem;
+    color: var(--text-secondary, #64748b);
+}
+
+.home-tournament-card-meta i {
+    color: var(--text-tertiary, #94a3b8);
+    font-size: 0.78rem;
+}
+
+.home-tournament-card-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1.2rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: #fff;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-tournament-card--blue .home-tournament-card-btn {
+    background: linear-gradient(135deg, #3b82f6, #06b6d4);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.25);
+}
+
+.home-tournament-card--purple .home-tournament-card-btn {
+    background: linear-gradient(135deg, #8b5cf6, #ec4899);
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.25);
+}
+
+.home-tournament-card--green .home-tournament-card-btn {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.25);
+}
+
+.home-tournament-card--orange .home-tournament-card-btn {
+    background: linear-gradient(135deg, #f97316, #fbbf24);
+    box-shadow: 0 4px 16px rgba(249, 115, 22, 0.25);
+}
+
+.home-tournament-card-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+}
+
+.home-tournament-card-btn i {
+    font-size: 0.75rem;
+    transition: transform 0.3s ease;
+}
+
+.home-tournament-card-btn:hover i {
+    transform: translateX(3px);
+}
+
+/* ===== PRODUCT CARDS ===== */
+.home-showcase-grid--products {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+    gap: 1.25rem;
+}
+
+.home-product-card {
+    border-radius: 20px;
+    background: linear-gradient(145deg, rgba(255,255,255,0.95), rgba(248,250,252,0.9));
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    box-shadow: 0 4px 16px rgba(15, 23, 42, 0.04);
+    overflow: hidden;
+    transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-product-card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 16px 40px rgba(15, 23, 42, 0.12);
+    border-color: transparent;
+}
+
+.home-product-card-media {
+    position: relative;
+    height: 180px;
+    overflow: hidden;
+    background: linear-gradient(135deg, #f1f5f9, #e2e8f0);
+}
+
+.home-product-card-media img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-product-card:hover .home-product-card-media img {
+    transform: scale(1.08);
+}
+
+.home-product-card-badge {
+    position: absolute;
+    top: 0.75rem;
+    left: 0.75rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 8px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.home-product-card-body {
+    padding: 1.25rem;
+}
+
+.home-product-card-category {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: var(--text-tertiary, #94a3b8);
+    margin-bottom: 0.4rem;
+}
+
+.home-product-card-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text-primary, #1e293b);
+    margin: 0 0 0.35rem;
+    line-height: 1.3;
+}
+
+.home-product-card-desc {
+    font-size: 0.82rem;
+    color: var(--text-secondary, #64748b);
+    margin: 0 0 0.85rem;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.home-product-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1rem;
+}
+
+.home-product-card-price {
+    font-size: 1.3rem;
+    font-weight: 800;
+    color: var(--text-primary, #1e293b);
+}
+
+.home-product-card-stats {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.home-product-card-rating {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #f59e0b;
+}
+
+.home-product-card-rating i {
+    font-size: 0.7rem;
+}
+
+.home-product-card-sales {
+    font-size: 0.75rem;
+    color: var(--text-tertiary, #94a3b8);
+}
+
+.home-product-card-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.7rem 1rem;
+    border-radius: 12px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    color: #fff;
+    background: linear-gradient(135deg, #3b82f6, #06b6d4);
+    box-shadow: 0 4px 16px rgba(59, 130, 246, 0.2);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-product-card--purple .home-product-card-btn {
+    background: linear-gradient(135deg, #8b5cf6, #ec4899);
+    box-shadow: 0 4px 16px rgba(139, 92, 246, 0.2);
+}
+
+.home-product-card--green .home-product-card-btn {
+    background: linear-gradient(135deg, #10b981, #34d399);
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.2);
+}
+
+.home-product-card--orange .home-product-card-btn {
+    background: linear-gradient(135deg, #f97316, #fbbf24);
+    box-shadow: 0 4px 16px rgba(249, 115, 22, 0.2);
+}
+
+.home-product-card-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.15);
+}
+
+/* ===== SHARED ENHANCEMENTS ===== */
+
+/* Enhanced left menu hover */
+.home-left-menu a {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-left-menu a:hover {
+    transform: translateX(4px);
+    background: rgba(59, 130, 246, 0.06);
+}
+
+/* Pulse card enhanced hover */
+.home-rail-pulse-card {
+    transition: all 0.3s ease;
+}
+
+.home-rail-pulse-card:hover {
+    box-shadow: 0 12px 36px rgba(59, 130, 246, 0.08);
+}
+
+.home-pulse-list a {
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-pulse-list a:hover {
+    transform: translateX(4px);
+    background: rgba(59, 130, 246, 0.04);
+}
+
+/* Feed header enhanced */
+.home-feed-pills .home-feed-pill {
+    transition: all 0.25s ease;
+}
+
+.home-feed-pills .home-feed-pill:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+}
+
+/* Suggestion card hover effect */
+.home-suggestion-card-v2 {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.home-suggestion-card-v2:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+/* Rail card subtle gradient */
+.home-rail-card {
+    transition: all 0.3s ease;
+}
+
+.home-rail-card:hover {
+    box-shadow: 0 12px 36px rgba(15, 23, 42, 0.06);
+}
+
+/* Metric icon pulse on hover */
+.home-rail-metric:hover .home-rail-metric-icon {
+    transform: scale(1.1);
+    transition: transform 0.3s ease;
+}
+
+/* Showcase panel spacing */
+.home-showcase-panel {
+    margin-bottom: 1.5rem;
+}
+
+.home-showcase-panel:last-child {
+    margin-bottom: 0;
+}

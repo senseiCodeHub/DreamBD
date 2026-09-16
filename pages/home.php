@@ -67,14 +67,24 @@ $staticProductShowcase = [
         'subtitle' => 'Official team edition apparel',
         'price' => '$29',
         'image' => 'assets/images/apps/app1.jpg',
-        'accent' => 'orange',
+        'accent' => 'blue',
+        'category' => 'Apparel',
+        'badge' => 'New',
+        'badge_color' => '#3b82f6',
+        'rating' => '4.8',
+        'sales' => 124,
     ],
     [
         'title' => 'Creator Stream Deck',
         'subtitle' => 'Hotkeys for tournament and content control',
         'price' => '$79',
         'image' => 'assets/images/apps/app2.jpg',
-        'accent' => 'green',
+        'accent' => 'purple',
+        'category' => 'Accessories',
+        'badge' => null,
+        'badge_color' => null,
+        'rating' => '4.6',
+        'sales' => 89,
     ],
 ];
 
@@ -101,17 +111,22 @@ try {
 
 $homeProductShowcase = $staticProductShowcase;
 try {
-    $dbProducts = getProducts($db, 2);
+    $dbProducts = getProducts($db, 4);
     if ($dbProducts) {
-        $accents = ['orange', 'green'];
+        $accents = ['blue', 'purple', 'green', 'orange'];
         $homeProductShowcase = array_map(static function ($item, $index) use ($accents) {
             $image = trim((string) ($item['image'] ?? ''));
             return [
                 'title' => $item['name'] ?: 'DreamBD Product',
-                'subtitle' => $item['description'] ?: ($item['category'] ?: 'Featured store item'),
+                'subtitle' => $item['short_desc'] ?: ($item['description'] ? mb_substr($item['description'], 0, 80) : 'Featured store item'),
                 'price' => '$' . number_format((float) ($item['price'] ?? 0), 2),
                 'image' => $image !== '' ? (str_starts_with($image, 'assets/') ? $image : 'assets/images/products/' . $image) : 'assets/images/apps/app1.jpg',
                 'accent' => $accents[$index % count($accents)],
+                'category' => $item['category'] ?? 'General',
+                'badge' => $item['badge'] ?? null,
+                'badge_color' => $item['badge_color'] ?? null,
+                'rating' => $item['rating'] ?? null,
+                'sales' => $item['sales'] ?? 0,
             ];
         }, $dbProducts, array_keys($dbProducts));
     }
@@ -169,8 +184,14 @@ try {
 ?>
 
 <div class="home-page home-social-home" data-home-page data-csrf-token="<?php echo htmlspecialchars($homeCsrfToken); ?>" data-viewer-id="<?php echo (int) ($viewerId ?? 0); ?>">
+
     <?php if ($sliderEnabled && $homeSlides): ?>
     <section class="home-hero-slider home-hero-slider--social">
+        <div class="home-hero-bg-shapes" aria-hidden="true">
+            <div class="hero-orb hero-orb-1"></div>
+            <div class="hero-orb hero-orb-2"></div>
+            <div class="hero-orb hero-orb-3"></div>
+        </div>
         <div class="home-slider-container">
             <?php foreach ($homeSlides as $slideIndex => $slide): ?>
                 <?php
@@ -200,7 +221,6 @@ try {
                     <?php endif; ?>
 
                     <?php if ($slideType === 'tournament'): ?>
-                    <!-- ===== TOURNAMENT SLIDE STYLE ===== -->
                     <div class="home-slide-bg-particles" aria-hidden="true">
                         <span class="particle"></span><span class="particle"></span><span class="particle"></span>
                         <span class="particle"></span><span class="particle"></span><span class="particle"></span>
@@ -242,7 +262,6 @@ try {
                     </div>
 
                     <?php elseif ($slideType === 'leaderboard'): ?>
-                    <!-- ===== LEADERBOARD SLIDE STYLE ===== -->
                     <div class="container">
                         <div class="home-slide-content">
                             <div class="home-leaderboard-text">
@@ -310,7 +329,6 @@ try {
                     </div>
 
                     <?php elseif ($slideType === 'ads'): ?>
-                    <!-- ===== ADVERTISEMENT SLIDE STYLE ===== -->
                     <div class="container">
                         <div class="home-slide-content home-slide-content--centered">
                             <div class="home-ad-slide" style="--ad-bg: <?php echo $bgGradient; ?>;">
@@ -341,14 +359,11 @@ try {
                     </div>
 
                     <?php else: ?>
-                    <!-- ===== FEATURES SLIDE STYLE (Web Features Showcase) ===== -->
                     <?php
                     $accentColor = htmlspecialchars($slide['accent_color'] ?? '#3b82f6');
                     $textColor = htmlspecialchars($slide['text_color'] ?? '#ffffff');
                     $badgeIcon = htmlspecialchars($slide['badge_icon'] ?? 'fa-star');
                     $overlayOpacity = $slide['overlay_opacity'] ?? 0.6;
-
-
                     ?>
                     <div class="home-slide-features-bg" style="--accent: <?php echo $accentColor; ?>; --text: <?php echo $textColor; ?>;">
                         <div class="home-slide-shape home-slide-shape--1" style="background: <?php echo $accentColor; ?>33;"></div>
@@ -482,7 +497,6 @@ try {
 
         <main class="home-center-feed" id="community">
             <?php if ($viewerId): ?>
-            <!-- Composer Card (trigger) -->
             <section class="community-composer-card" id="composerCard">
                 <div class="community-composer-top">
                     <img src="assets/avatars/<?= htmlspecialchars($_SESSION['avatar'] ?? 'default.png') ?>" alt="" onerror="this.src='assets/avatars/default.png'">
@@ -494,7 +508,6 @@ try {
                 </div>
             </section>
             
-            <!-- Create Post Modal -->
             <div class="create-post-overlay" id="createPostOverlay">
                 <div class="create-post-modal">
                     <div class="create-post-header">
@@ -635,7 +648,7 @@ try {
             <?php endforeach; ?>
 
             <section class="home-content-showcase">
-                <article class="home-showcase-panel">
+                <article class="home-showcase-panel home-showcase-panel--tournaments">
                     <div class="home-showcase-panel-header">
                         <div>
                             <span class="home-rail-kicker">Tournaments</span>
@@ -643,22 +656,31 @@ try {
                         </div>
                         <a href="index.php?page=tournaments" class="btn btn-outline btn-sm" data-page="tournaments">View all</a>
                     </div>
-                    <div class="home-showcase-grid">
-                        <?php foreach ($homeTournamentShowcase as $item): ?>
-                            <article class="home-showcase-item home-showcase-item--<?php echo htmlspecialchars($item['accent']); ?>">
-                                <strong><?php echo htmlspecialchars($item['title']); ?></strong>
-                                <p><?php echo htmlspecialchars($item['subtitle']); ?></p>
-                                <div class="home-showcase-meta">
+                    <div class="home-showcase-grid home-showcase-grid--tournaments">
+                        <?php foreach ($homeTournamentShowcase as $tIdx => $item): ?>
+                            <article class="home-tournament-card home-tournament-card--<?php echo htmlspecialchars($item['accent']); ?>" data-tournament-idx="<?php echo $tIdx; ?>">
+                                <div class="home-tournament-card-top">
+                                    <div class="home-tournament-card-icon">
+                                        <i class="fas fa-trophy"></i>
+                                    </div>
+                                    <span class="home-tournament-card-status"><?php echo htmlspecialchars($item['prize']); ?></span>
+                                </div>
+                                <h4 class="home-tournament-card-title"><?php echo htmlspecialchars($item['title']); ?></h4>
+                                <p class="home-tournament-card-desc"><?php echo htmlspecialchars($item['subtitle']); ?></p>
+                                <div class="home-tournament-card-meta">
                                     <span><i class="fas fa-calendar-days"></i> <?php echo htmlspecialchars($item['date']); ?></span>
                                     <span><i class="fas fa-users"></i> <?php echo htmlspecialchars($item['teams']); ?></span>
-                                    <span><i class="fas fa-trophy"></i> <?php echo htmlspecialchars($item['prize']); ?></span>
                                 </div>
+                                <a href="index.php?page=tournaments" class="home-tournament-card-btn" data-page="tournaments">
+                                    <span>View Details</span>
+                                    <i class="fas fa-arrow-right"></i>
+                                </a>
                             </article>
                         <?php endforeach; ?>
                     </div>
                 </article>
 
-                <article class="home-showcase-panel">
+                <article class="home-showcase-panel home-showcase-panel--products">
                     <div class="home-showcase-panel-header">
                         <div>
                             <span class="home-rail-kicker">Products</span>
@@ -666,16 +688,33 @@ try {
                         </div>
                         <a href="index.php?page=products" class="btn btn-outline btn-sm" data-page="products">Browse store</a>
                     </div>
-                    <div class="home-showcase-grid home-showcase-grid-products">
-                        <?php foreach ($homeProductShowcase as $item): ?>
-                            <article class="home-showcase-product home-showcase-item--<?php echo htmlspecialchars($item['accent']); ?>">
-                                <div class="home-showcase-product-media">
+                    <div class="home-showcase-grid home-showcase-grid--products">
+                        <?php foreach ($homeProductShowcase as $pIdx => $item): ?>
+                            <article class="home-product-card home-product-card--<?php echo htmlspecialchars($item['accent']); ?>" data-product-idx="<?php echo $pIdx; ?>">
+                                <div class="home-product-card-media">
                                     <img src="<?php echo htmlspecialchars($item['image']); ?>" alt="<?php echo htmlspecialchars($item['title']); ?>" loading="lazy">
+                                    <?php if (!empty($item['badge'])): ?>
+                                    <span class="home-product-card-badge" style="background:<?php echo htmlspecialchars($item['badge_color'] ?? '#3b82f6'); ?>"><?php echo htmlspecialchars($item['badge']); ?></span>
+                                    <?php endif; ?>
                                 </div>
-                                <div class="home-showcase-product-copy">
-                                    <strong><?php echo htmlspecialchars($item['title']); ?></strong>
-                                    <p><?php echo htmlspecialchars($item['subtitle']); ?></p>
-                                    <span><?php echo htmlspecialchars($item['price']); ?></span>
+                                <div class="home-product-card-body">
+                                    <span class="home-product-card-category"><?php echo htmlspecialchars($item['category'] ?? 'General'); ?></span>
+                                    <h4 class="home-product-card-title"><?php echo htmlspecialchars($item['title']); ?></h4>
+                                    <p class="home-product-card-desc"><?php echo htmlspecialchars($item['subtitle']); ?></p>
+                                    <div class="home-product-card-footer">
+                                        <span class="home-product-card-price"><?php echo htmlspecialchars($item['price']); ?></span>
+                                        <div class="home-product-card-stats">
+                                            <?php if (!empty($item['rating'])): ?>
+                                            <span class="home-product-card-rating"><i class="fas fa-star"></i> <?php echo htmlspecialchars($item['rating']); ?></span>
+                                            <?php endif; ?>
+                                            <?php if (!empty($item['sales'])): ?>
+                                            <span class="home-product-card-sales"><?php echo number_format((int) $item['sales']); ?> sold</span>
+                                            <?php endif; ?>
+                                        </div>
+                                    </div>
+                                    <a href="index.php?page=products" class="home-product-card-btn" data-page="products">
+                                        <i class="fas fa-shopping-cart"></i> View Product
+                                    </a>
                                 </div>
                             </article>
                         <?php endforeach; ?>
