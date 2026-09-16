@@ -176,6 +176,10 @@ try {
                 <span class="flex items-center gap-3"><i class="fas fa-ad text-green-500"></i> Ad Manager</span>
                 <i class="fas fa-chevron-right text-xs text-gray-400"></i>
             </a>
+            <a href="topup-manager.php" class="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/70 dark:hover:bg-gray-700 transition-colors">
+                <span class="flex items-center gap-3"><i class="fas fa-gamepad text-indigo-500"></i> Game Top-Up</span>
+                <i class="fas fa-chevron-right text-xs text-gray-400"></i>
+            </a>
             <div class="border-t border-gray-200 dark:border-gray-700 my-2"></div>
             <a href="user-manager.php" class="flex items-center justify-between gap-3 px-4 py-3 rounded-2xl bg-gray-50 hover:bg-gray-100 dark:bg-gray-700/70 dark:hover:bg-gray-700 transition-colors">
                 <span class="flex items-center gap-3"><i class="fas fa-users-cog text-blue-500"></i> User manager</span>

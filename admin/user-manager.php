@@ -52,7 +52,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['change_role'])) {
         $db = Database::getInstance()->getConnection();
         $userId = (int)($_POST['user_id'] ?? 0);
         $newRole = trim($_POST['new_role'] ?? '');
-        if (!in_array($newRole, ['user','agent','moderator','merchant'])) {
+        if (!in_array($newRole, ['user','agent','moderator','merchant','seller'])) {
             echo json_encode(['status' => 'error', 'message' => 'Invalid role']);
             exit;
         }

@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 // index.php
 require_once __DIR__ . '/includes/session.php';
 dream_start_session();
@@ -28,7 +28,7 @@ if ($isLoggedIn && !empty($_SESSION['user_id'])) {
 }
 
 $page = $_GET['page'] ?? 'home';
-$allowed_pages = ['home', 'community', 'products', 'tournaments', 'tournament-room', 'how-it-works', 'cart', 'login', 'register', 'rules', 'faq', 'profile', 'messages', 'notifications', 'search', 'agent-dashboard', 'balance', 'p2p', 'admin', 'agent_submit_results', 'verify', 'reset_password', 'clubs', 'player-market'];
+$allowed_pages = ['home', 'community', 'products', 'tournaments', 'tournament-room', 'how-it-works', 'cart', 'login', 'register', 'rules', 'faq', 'profile', 'messages', 'notifications', 'search', 'agent-dashboard', 'balance', 'p2p', 'admin', 'agent_submit_results', 'verify', 'reset_password', 'clubs', 'player-market', 'seller-upload'];
 $page = in_array($page, $allowed_pages) ? $page : 'home';
 
 $is_ajax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && 
@@ -46,7 +46,7 @@ if ($isLoggedIn && ($page === 'login' || $page === 'register')) {
 }
 
 // Check if user is not logged in and trying to access protected page
-if (!$isLoggedIn && in_array($page, ['profile', 'messages', 'notifications', 'tournament-room'], true)) {
+if (!$isLoggedIn && in_array($page, ['profile', 'messages', 'notifications', 'tournament-room', 'seller-upload'], true)) {
     if ($is_ajax) {
         echo json_encode(['redirect' => 'index.php?page=login', 'status' => 'redirect']);
         exit;

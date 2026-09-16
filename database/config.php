@@ -571,6 +571,177 @@ function ensureClubFeatureSchema(PDO $db): void {
     } catch (Throwable $e) {}
 }
 
+function ensureProductSchema(PDO $db): void {
+    $queries = [
+        "CREATE TABLE IF NOT EXISTS products (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            name VARCHAR(150) NOT NULL,
+            description TEXT NULL,
+            short_desc VARCHAR(255) DEFAULT NULL,
+            price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            image VARCHAR(255) DEFAULT NULL,
+            file_path VARCHAR(255) DEFAULT NULL,
+            file_type VARCHAR(20) DEFAULT NULL,
+            badge VARCHAR(50) DEFAULT NULL,
+            badge_color VARCHAR(20) DEFAULT NULL,
+            rating DECIMAL(2,1) DEFAULT 0.0,
+            sales INT UNSIGNED DEFAULT 0,
+            pages INT UNSIGNED DEFAULT 0,
+            category VARCHAR(80) DEFAULT NULL,
+            stock INT NOT NULL DEFAULT 0,
+            status ENUM('active','inactive','pending') NOT NULL DEFAULT 'active',
+            author_id INT UNSIGNED DEFAULT NULL,
+            preview_text TEXT DEFAULT NULL,
+            content_long TEXT DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL,
+            INDEX idx_product_category (category),
+            INDEX idx_product_status (status),
+            INDEX idx_product_author (author_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        "CREATE TABLE IF NOT EXISTS product_purchases (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            product_id INT UNSIGNED NOT NULL,
+            amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            status ENUM('completed','refunded') NOT NULL DEFAULT 'completed',
+            author_earnings DECIMAL(10,2) DEFAULT 0.00,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
+            UNIQUE KEY uniq_user_product (user_id, product_id),
+            INDEX idx_purchase_user (user_id),
+            INDEX idx_purchase_product (product_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    ];
+
+    foreach ($queries as $sql) {
+        try { $db->exec($sql); } catch (PDOException $e) { error_log("Product Schema: " . $e->getMessage()); }
+    }
+
+    $colQueries = [
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS author_id INT UNSIGNED DEFAULT NULL AFTER status",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS file_path VARCHAR(255) DEFAULT NULL AFTER author_id",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS file_type VARCHAR(20) DEFAULT NULL AFTER file_path",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS preview_text TEXT DEFAULT NULL AFTER file_type",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS content_long TEXT DEFAULT NULL AFTER preview_text",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS short_desc VARCHAR(255) DEFAULT NULL AFTER description",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS badge VARCHAR(50) DEFAULT NULL AFTER image",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS badge_color VARCHAR(20) DEFAULT NULL AFTER badge",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS rating DECIMAL(2,1) DEFAULT 0.0 AFTER badge_color",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS sales INT UNSIGNED DEFAULT 0 AFTER rating",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS pages INT UNSIGNED DEFAULT 0 AFTER sales",
+        "ALTER TABLE products MODIFY status ENUM('active','inactive','pending') NOT NULL DEFAULT 'active'",
+    ];
+    foreach ($colQueries as $sql) {
+        try { $db->exec($sql); } catch (Throwable $e) {}
+    }
+}
+
+function ensureTopupSchema(PDO $db): void {
+    $queries = [
+        "CREATE TABLE IF NOT EXISTS game_topup_games (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            slug VARCHAR(80) NOT NULL UNIQUE,
+            name VARCHAR(120) NOT NULL,
+            icon VARCHAR(60) DEFAULT 'fa-gamepad',
+            gradient VARCHAR(255) DEFAULT '',
+            shadow_color VARCHAR(50) DEFAULT '',
+            description VARCHAR(255) DEFAULT '',
+            sort_order INT DEFAULT 0,
+            status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_topup_game_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        "CREATE TABLE IF NOT EXISTS game_topup_packages (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            game_id INT UNSIGNED NOT NULL,
+            name VARCHAR(120) NOT NULL,
+            price DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            badge VARCHAR(50) DEFAULT '',
+            badge_color VARCHAR(20) DEFAULT '',
+            sort_order INT DEFAULT 0,
+            status ENUM('active','inactive') NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_pkg_game (game_id),
+            INDEX idx_pkg_status (status)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+        "CREATE TABLE IF NOT EXISTS topup_orders (
+            id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            user_id INT UNSIGNED NOT NULL,
+            game_id INT UNSIGNED NULL,
+            package_id INT UNSIGNED NULL,
+            game_name VARCHAR(120) DEFAULT '',
+            package_name VARCHAR(120) DEFAULT '',
+            amount DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+            player_uid VARCHAR(120) NOT NULL DEFAULT '',
+            player_zone VARCHAR(60) DEFAULT '',
+            contact VARCHAR(120) DEFAULT '',
+            status ENUM('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
+            note TEXT DEFAULT NULL,
+            handled_by INT UNSIGNED DEFAULT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            INDEX idx_topup_user (user_id),
+            INDEX idx_topup_status (status),
+            INDEX idx_topup_package (package_id),
+            INDEX idx_topup_game (game_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+    ];
+
+    foreach ($queries as $sql) {
+        try { $db->exec($sql); } catch (Throwable $e) {}
+    }
+
+    // Products table gets free-preview support columns
+    $colQueries = [
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS preview_file VARCHAR(255) DEFAULT NULL AFTER preview_text",
+        "ALTER TABLE products ADD COLUMN IF NOT EXISTS preview_pages INT UNSIGNED DEFAULT 0 AFTER preview_file",
+    ];
+    foreach ($colQueries as $sql) {
+        try { $db->exec($sql); } catch (Throwable $e) {}
+    }
+
+    // Seed default games/packages only when the games table is empty
+    try {
+        $count = (int) $db->query("SELECT COUNT(*) FROM game_topup_games")->fetchColumn();
+        if ($count === 0) {
+            $defaultGames = [
+                ['slug' => 'freefire', 'name' => 'Free Fire', 'icon' => 'fa-crosshairs', 'gradient' => 'linear-gradient(135deg, #ff6b35, #f7931e)', 'shadow' => 'rgba(255,107,53,0.3)', 'description' => 'Diamond top-up. Instant delivery.',
+                 'packages' => [['name' => '100 Diamonds', 'price' => 120], ['name' => '310 Diamonds', 'price' => 350, 'badge' => 'Popular'], ['name' => '520 Diamonds', 'price' => 590, 'badge' => 'Best Value'], ['name' => '1060 Diamonds', 'price' => 1180], ['name' => '2180 Diamonds', 'price' => 2350, 'badge' => 'Premium']]],
+                ['slug' => 'pubg', 'name' => 'PUBG Mobile', 'icon' => 'fa-gun', 'gradient' => 'linear-gradient(135deg, #e53935, #b71c1c)', 'shadow' => 'rgba(229,57,53,0.3)', 'description' => 'UC top-up. Fast & secure.',
+                 'packages' => [['name' => '60 UC', 'price' => 150], ['name' => '180 UC', 'price' => 420], ['name' => '325 UC', 'price' => 750, 'badge' => 'Popular'], ['name' => '660 UC', 'price' => 1480, 'badge' => 'Best Value'], ['name' => '1800 UC', 'price' => 3950, 'badge' => 'Premium']]],
+                ['slug' => 'mlbb', 'name' => 'Mobile Legends', 'icon' => 'fa-chess-king', 'gradient' => 'linear-gradient(135deg, #7b1fa2, #4a148c)', 'shadow' => 'rgba(123,31,162,0.3)', 'description' => 'Diamonds for MLBB.',
+                 'packages' => [['name' => '86 Diamonds', 'price' => 110], ['name' => '172 Diamonds', 'price' => 220], ['name' => '350 Diamonds', 'price' => 430, 'badge' => 'Popular'], ['name' => '706 Diamonds', 'price' => 860, 'badge' => 'Best Value'], ['name' => '2010 Diamonds', 'price' => 2400, 'badge' => 'Premium']]],
+                ['slug' => 'codm', 'name' => 'COD Mobile', 'icon' => 'fa-skull', 'gradient' => 'linear-gradient(135deg, #1e88e5, #0d47a1)', 'shadow' => 'rgba(30,136,229,0.3)', 'description' => 'CP top-up for COD.',
+                 'packages' => [['name' => '80 CP', 'price' => 130], ['name' => '420 CP', 'price' => 650, 'badge' => 'Popular'], ['name' => '880 CP', 'price' => 1320], ['name' => '2400 CP', 'price' => 3500, 'badge' => 'Best Value']]],
+                ['slug' => 'valorant', 'name' => 'Valorant', 'icon' => 'fa-bolt', 'gradient' => 'linear-gradient(135deg, #ff4655, #bd2935)', 'shadow' => 'rgba(255,70,85,0.3)', 'description' => 'VP top-up.',
+                 'packages' => [['name' => '475 VP', 'price' => 650], ['name' => '1000 VP', 'price' => 1280, 'badge' => 'Popular'], ['name' => '2050 VP', 'price' => 2550, 'badge' => 'Best Value']]],
+                ['slug' => 'coc', 'name' => 'Clash of Clans', 'icon' => 'fa-shield-halved', 'gradient' => 'linear-gradient(135deg, #e53935, #ff6f00)', 'shadow' => 'rgba(229,57,53,0.3)', 'description' => 'Gems for Clash.',
+                 'packages' => [['name' => '500 Gems', 'price' => 180], ['name' => '1200 Gems', 'price' => 420, 'badge' => 'Popular'], ['name' => '2500 Gems', 'price' => 850], ['name' => '6500 Gems', 'price' => 2100, 'badge' => 'Best Value'], ['name' => '14000 Gems', 'price' => 4200, 'badge' => 'Premium']]],
+            ];
+
+            foreach ($defaultGames as $gi => $game) {
+                $stmt = $db->prepare("INSERT INTO game_topup_games (slug, name, icon, gradient, shadow_color, description, sort_order, status) VALUES (?,?,?,?,?,?,?,'active')");
+                $stmt->execute([$game['slug'], $game['name'], $game['icon'], $game['gradient'], $game['shadow'], $game['description'], $gi]);
+                $gameId = (int) $db->lastInsertId();
+                $stmt = $db->prepare("INSERT INTO game_topup_packages (game_id, name, price, badge, badge_color, sort_order, status) VALUES (?,?,?,?,?,?,'active')");
+                foreach ($game['packages'] as $pi => $pkg) {
+                    $badge = $pkg['badge'] ?? '';
+                    $badgeColor = $badge ? ($badge === 'Popular' ? '#3b82f6' : ($badge === 'Best Value' ? '#10b981' : '#ef4444')) : '';
+                    $stmt->execute([$gameId, $pkg['name'], $pkg['price'], $badge, $badgeColor, $pi]);
+                }
+            }
+        }
+    } catch (Throwable $e) {}
+}
+
 // Composer autoload
 $composerAutoload = __DIR__ . '/../vendor/autoload.php';
 if (file_exists($composerAutoload)) {
@@ -659,6 +830,8 @@ try {
     ensureUserSessionsSchema($db);
     ensureTournamentFeatureSchema($db);
     ensureClubFeatureSchema($db);
+    ensureProductSchema($db);
+    ensureTopupSchema($db);
 } catch (Exception $e) {
     error_log("Config Error: " . $e->getMessage());
 }

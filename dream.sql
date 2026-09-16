@@ -602,6 +602,63 @@ CREATE TABLE IF NOT EXISTS `products` (
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Game Top-Up catalog
+CREATE TABLE IF NOT EXISTS `game_topup_games` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `slug` varchar(80) NOT NULL,
+  `name` varchar(120) NOT NULL,
+  `icon` varchar(60) DEFAULT 'fa-gamepad',
+  `gradient` varchar(255) DEFAULT '',
+  `shadow_color` varchar(50) DEFAULT '',
+  `description` varchar(255) DEFAULT '',
+  `sort_order` int(11) DEFAULT 0,
+  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `slug` (`slug`),
+  KEY `idx_topup_game_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `game_topup_packages` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `game_id` int(10) unsigned NOT NULL,
+  `name` varchar(120) NOT NULL,
+  `price` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `badge` varchar(50) DEFAULT '',
+  `badge_color` varchar(20) DEFAULT '',
+  `sort_order` int(11) DEFAULT 0,
+  `status` enum('active','inactive') NOT NULL DEFAULT 'active',
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_pkg_game` (`game_id`),
+  KEY `idx_pkg_status` (`status`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `topup_orders` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL,
+  `game_id` int(10) unsigned DEFAULT NULL,
+  `package_id` int(10) unsigned DEFAULT NULL,
+  `game_name` varchar(120) DEFAULT '',
+  `package_name` varchar(120) DEFAULT '',
+  `amount` decimal(10,2) NOT NULL DEFAULT 0.00,
+  `player_uid` varchar(120) NOT NULL DEFAULT '',
+  `player_zone` varchar(60) DEFAULT '',
+  `contact` varchar(120) DEFAULT '',
+  `status` enum('pending','processing','completed','cancelled') NOT NULL DEFAULT 'pending',
+  `note` text DEFAULT NULL,
+  `handled_by` int(10) unsigned DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_topup_user` (`user_id`),
+  KEY `idx_topup_status` (`status`),
+  KEY `idx_topup_package` (`package_id`),
+  KEY `idx_topup_game` (`game_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS `orders` (
   `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   `user_id` int(10) unsigned NOT NULL,
