@@ -15,6 +15,7 @@ class HomePage {
             await this.waitForDOM();
             this.initSlider();
             this.initStatsCounter();
+            this.initHeroScroll();
             this.initPostMenus();
             this.initFriendActions();
             this.isInitialized = true;
@@ -118,18 +119,44 @@ class HomePage {
                 if (!entry.isIntersecting) return;
                 const stat = entry.target;
                 const target = Number(stat.dataset.count || 0);
+                const startTime = performance.now();
+                let finished = false;
+                // Safety net: rAF can stall (throttled/background tab) which
+                // would freeze the number mid-count. Timers still run.
+                const finish = () => {
+                    if (finished) return;
+                    finished = true;
+                    stat.textContent = target.toLocaleString();
+                };
                 const tick = (now) => {
+                    if (finished) return;
                     const progress = Math.min((now - startTime) / 1400, 1);
                     stat.textContent = Math.floor(target * (1 - Math.pow(1 - progress, 4))).toLocaleString();
                     if (progress < 1) requestAnimationFrame(tick);
-                    else stat.textContent = target.toLocaleString();
+                    else finish();
                 };
-                const startTime = performance.now();
                 requestAnimationFrame(tick);
+                window.setTimeout(finish, 1700);
                 observer.unobserve(stat);
             });
         }, { threshold: 0.35 });
         stats.forEach((s) => observer.observe(s));
+    }
+
+    initHeroScroll() {
+        if (window.__heroScrollBound) return;
+        window.__heroScrollBound = true;
+        document.addEventListener('click', (e) => {
+            const link = e.target.closest('[data-hero-scroll]');
+            if (!link) return;
+            const selector = link.getAttribute('data-hero-scroll');
+            const target = selector ? document.querySelector(selector) : null;
+            const scroller = document.getElementById('mainContent');
+            if (!target || !scroller) return;
+            e.preventDefault();
+            const offset = target.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop - 96;
+            scroller.scrollTo({ top: Math.max(0, offset), behavior: 'smooth' });
+        });
     }
 
     initPostMenus() {

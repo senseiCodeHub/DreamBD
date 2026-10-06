@@ -168,11 +168,14 @@ unset($_SESSION['form_data']);
                         <?php endif; ?>
                     </div>
 
-                    <!-- reCAPTCHA -->
+                    <!-- reCAPTCHA [RECAPTCHA-TEMP-DISABLED] -->
+                    <!--
                     <div class="recaptcha-wrap">
                         <div class="g-recaptcha" data-sitekey="<?php echo DatabaseConfig::RECAPTCHA_SITE_KEY; ?>"></div>
                         <div id="recaptchaError" class="text-xs text-red-500 hidden"></div>
                     </div>
+                    -->
+                    <div id="recaptchaError" class="text-xs text-red-500 hidden"></div>
 
                     <!-- Submit -->
                     <button type="submit" class="w-full py-2.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 dark:focus:ring-offset-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors" id="registerBtn">

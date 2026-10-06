@@ -1,0 +1,892 @@
+/* ==========================================================================
+   DreamBD — INDEX REDESIGN
+   File      : assets/css/home-redesign.css
+   Purpose   : New home hero + visual polish overrides for the index page.
+   Load      : linked AFTER home.css / community.css (so equal-specificity
+               rules here win the cascade).
+   Revert    : delete this file + remove its <link> tags.
+   ========================================================================== */
+
+/* ==========================================================================
+   1. HERO — shell & animated background
+   ========================================================================== */
+
+.home-hero {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    margin-bottom: 1.35rem;
+    padding: clamp(26px, 3.6vw, 52px);
+    border-radius: 30px;
+    color: #fff;
+    background:
+        radial-gradient(1100px 460px at 8% -15%, rgba(56, 132, 255, 0.55), transparent 62%),
+        radial-gradient(880px 420px at 92% -8%, rgba(168, 85, 247, 0.5), transparent 64%),
+        radial-gradient(760px 520px at 70% 125%, rgba(14, 165, 233, 0.4), transparent 62%),
+        linear-gradient(145deg, #0a1024 0%, #121a3a 46%, #1b1044 100%);
+    box-shadow:
+        0 34px 70px -34px rgba(11, 17, 45, 0.75),
+        inset 0 1px 0 rgba(255, 255, 255, 0.09);
+}
+
+.home-hero::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, 0.07) 50%, transparent 70%);
+    transform: translateX(-120%);
+    animation: heroSheen 7.5s ease-in-out 1.6s infinite;
+    pointer-events: none;
+}
+
+.home-hero-bg {
+    position: absolute;
+    inset: 0;
+    z-index: -2;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+.home-hero-orb {
+    position: absolute;
+    display: block;
+    border-radius: 50%;
+    filter: blur(46px);
+    opacity: 0.62;
+    will-change: transform;
+}
+
+.home-hero-orb--1 {
+    top: -80px;
+    left: -60px;
+    width: 300px;
+    height: 300px;
+    background: #3b82f6;
+    animation: heroOrbA 16s ease-in-out infinite;
+}
+
+.home-hero-orb--2 {
+    top: 40px;
+    right: -70px;
+    width: 280px;
+    height: 280px;
+    background: #a855f7;
+    animation: heroOrbB 19s ease-in-out infinite;
+}
+
+.home-hero-orb--3 {
+    bottom: -110px;
+    left: 38%;
+    width: 320px;
+    height: 320px;
+    background: #06b6d4;
+    opacity: 0.45;
+    animation: heroOrbC 22s ease-in-out infinite;
+}
+
+/* subtle blueprint grid */
+.home-hero-mesh {
+    position: absolute;
+    inset: 0;
+    background-image:
+        linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size: 46px 46px;
+    mask-image: radial-gradient(circle at 25% 30%, #000 0%, transparent 78%);
+    -webkit-mask-image: radial-gradient(circle at 25% 30%, #000 0%, transparent 78%);
+    opacity: 0.55;
+}
+
+/* floating "spark" dots */
+.home-hero-rays {
+    position: absolute;
+    inset: 0;
+    background:
+        radial-gradient(2px 2px at 18% 34%, rgba(255, 255, 255, 0.75), transparent 60%),
+        radial-gradient(2px 2px at 64% 22%, rgba(255, 255, 255, 0.55), transparent 60%),
+        radial-gradient(2px 2px at 82% 66%, rgba(255, 255, 255, 0.5), transparent 60%),
+        radial-gradient(2px 2px at 36% 78%, rgba(255, 255, 255, 0.45), transparent 60%),
+        radial-gradient(2px 2px at 50% 52%, rgba(255, 255, 255, 0.4), transparent 60%);
+    animation: heroTwinkle 5.5s ease-in-out infinite;
+}
+
+.home-hero-container {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: minmax(0, 1.08fr) minmax(0, 0.92fr);
+    gap: clamp(24px, 3vw, 46px);
+    align-items: center;
+}
+
+/* ==========================================================================
+   2. HERO — copy block
+   ========================================================================== */
+
+.home-hero-copy {
+    animation: heroRise 0.75s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.home-hero-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.45rem 0.95rem;
+    border-radius: 999px;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #dbeafe;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+
+.home-hero-badge i {
+    color: #7dd3fc;
+    font-size: 0.82rem;
+}
+
+.home-hero-badge-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #34d399;
+    box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.7);
+    animation: heroPulse 2s ease-out infinite;
+}
+
+.home-hero-title {
+    margin: 1.05rem 0 0;
+    font-size: clamp(2rem, 3.6vw, 3.15rem);
+    line-height: 1.06;
+    font-weight: 800;
+    letter-spacing: -0.028em;
+    color: #fff;
+    text-wrap: balance;
+}
+
+.home-hero-gradient {
+    display: inline-block;
+    background: linear-gradient(96deg, #7dd3fc 0%, #a78bfa 45%, #f0abfc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+}
+
+.home-hero-desc {
+    margin: 1rem 0 0;
+    max-width: 56ch;
+    font-size: clamp(0.95rem, 1.15vw, 1.06rem);
+    line-height: 1.65;
+    color: rgba(226, 232, 240, 0.82);
+}
+
+.home-hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem;
+    margin-top: 1.6rem;
+}
+
+.home-hero-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.55rem;
+    padding: 0.85rem 1.5rem;
+    border-radius: 14px;
+    font-size: 0.95rem;
+    font-weight: 700;
+    text-decoration: none;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: transform 0.24s ease, box-shadow 0.24s ease, background 0.24s ease, border-color 0.24s ease;
+}
+
+.home-hero-btn:focus-visible {
+    outline: 2px solid #93c5fd;
+    outline-offset: 3px;
+}
+
+.home-hero-btn--primary {
+    color: #fff;
+    background: linear-gradient(135deg, #4f7cff 0%, #8b5cf6 55%, #d946ef 100%);
+    box-shadow: 0 14px 34px -12px rgba(139, 92, 246, 0.75);
+}
+
+.home-hero-btn--primary:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 22px 44px -14px rgba(139, 92, 246, 0.9);
+    color: #fff;
+}
+
+.home-hero-btn--ghost {
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.22);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+}
+
+.home-hero-btn--ghost:hover {
+    transform: translateY(-3px);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.4);
+    color: #fff;
+}
+
+.home-hero-stats {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.7rem;
+    margin-top: 1.9rem;
+    padding-top: 1.4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.13);
+}
+
+.home-hero-stat {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.6rem 0.95rem 0.6rem 0.65rem;
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    transition: transform 0.25s ease, background 0.25s ease;
+}
+
+.home-hero-stat:hover {
+    transform: translateY(-3px);
+    background: rgba(255, 255, 255, 0.13);
+}
+
+.home-hero-stat-icon {
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 11px;
+    font-size: 0.86rem;
+    color: #fff;
+    background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+    box-shadow: 0 6px 16px -6px rgba(59, 130, 246, 0.8);
+}
+
+.home-hero-stat:nth-child(2) .home-hero-stat-icon {
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    box-shadow: 0 6px 16px -6px rgba(16, 185, 129, 0.8);
+}
+
+.home-hero-stat:nth-child(3) .home-hero-stat-icon {
+    background: linear-gradient(135deg, #f59e0b, #ef4444);
+    box-shadow: 0 6px 16px -6px rgba(245, 158, 11, 0.8);
+}
+
+.home-hero-stat-body {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.15;
+}
+
+.home-hero-stat-body strong {
+    font-size: 1.18rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: #fff;
+}
+
+.home-hero-stat-body span {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: rgba(203, 213, 225, 0.75);
+}
+
+/* ==========================================================================
+   3. HERO — visual cards
+   ========================================================================== */
+
+.home-hero-visual {
+    position: relative;
+    display: grid;
+    gap: 0.95rem;
+    align-content: center;
+    animation: heroRise 0.85s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both;
+}
+
+.home-hero-card {
+    position: relative;
+    overflow: hidden;
+    padding: 1.1rem 1.2rem;
+    border-radius: 20px;
+    background: rgba(255, 255, 255, 0.09);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 22px 48px -24px rgba(2, 6, 23, 0.85);
+    transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.home-hero-card:hover {
+    transform: translateY(-5px);
+    border-color: rgba(255, 255, 255, 0.32);
+}
+
+.home-hero-card-glow {
+    position: absolute;
+    top: -60px;
+    right: -60px;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(251, 191, 36, 0.45), transparent 68%);
+    pointer-events: none;
+}
+
+.home-hero-card header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    position: relative;
+}
+
+.home-hero-card-icon {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: 13px;
+    font-size: 1.05rem;
+    color: #fff;
+    background: linear-gradient(135deg, #f59e0b, #f97316);
+    box-shadow: 0 8px 22px -8px rgba(249, 115, 22, 0.9);
+}
+
+.home-hero-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.32rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: #bfdbfe;
+    background: rgba(59, 130, 246, 0.2);
+    border: 1px solid rgba(147, 197, 253, 0.35);
+}
+
+.home-hero-live.is-live {
+    color: #fecaca;
+    background: rgba(239, 68, 68, 0.22);
+    border-color: rgba(252, 165, 165, 0.42);
+}
+
+.home-hero-live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: currentColor;
+    animation: heroPulse 1.6s ease-out infinite;
+}
+
+.home-hero-card h3 {
+    position: relative;
+    margin: 0.85rem 0 0;
+    font-size: 1.2rem;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+    color: #fff;
+}
+
+.home-hero-card p {
+    position: relative;
+    margin: 0.3rem 0 0;
+    font-size: 0.86rem;
+    color: rgba(203, 213, 225, 0.82);
+}
+
+.home-hero-card-link {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.95rem;
+    font-size: 0.87rem;
+    font-weight: 700;
+    color: #93c5fd;
+    text-decoration: none;
+    transition: gap 0.25s ease, color 0.25s ease;
+}
+
+.home-hero-card-link:hover {
+    gap: 0.8rem;
+    color: #fff;
+}
+
+/* leaderboard card */
+.home-hero-card--players {
+    margin-left: clamp(18px, 6%, 54px);
+    animation: heroFloat 7s ease-in-out infinite;
+}
+
+.home-hero-card-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #fde68a;
+}
+
+.home-hero-players {
+    list-style: none;
+    margin: 0.85rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.55rem;
+}
+
+.home-hero-players li {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    padding: 0.42rem 0.6rem;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: background 0.22s ease, transform 0.22s ease;
+}
+
+.home-hero-players li:hover {
+    background: rgba(255, 255, 255, 0.13);
+    transform: translateX(4px);
+}
+
+.home-hero-rank {
+    min-width: 30px;
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: #fbbf24;
+}
+
+.home-hero-players li:nth-child(2) .home-hero-rank { color: #cbd5e1; }
+.home-hero-players li:nth-child(3) .home-hero-rank { color: #d97706; }
+
+.home-hero-players img {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.28);
+    background: rgba(255, 255, 255, 0.14);
+}
+
+.home-hero-player-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.87rem;
+    font-weight: 700;
+    color: #f1f5f9;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.home-hero-player-score {
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #a5b4fc;
+}
+
+/* online chip */
+.home-hero-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.7rem;
+    justify-self: start;
+    margin-left: clamp(8px, 3%, 34px);
+    padding: 0.5rem 0.95rem 0.5rem 0.55rem;
+    border-radius: 999px;
+    font-size: 0.83rem;
+    font-weight: 600;
+    color: #e2e8f0;
+    background: rgba(15, 23, 42, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    animation: heroFloat 6s ease-in-out 0.6s infinite;
+}
+
+.home-hero-chip strong {
+    color: #fff;
+    font-weight: 800;
+}
+
+.home-hero-avatars {
+    display: flex;
+    align-items: center;
+}
+
+.home-hero-avatars img {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #0f172a;
+    background: #1e293b;
+    margin-left: -9px;
+}
+
+.home-hero-avatars img:first-child {
+    margin-left: 0;
+}
+
+/* ==========================================================================
+   4. HERO — logged-in compact variant
+   ========================================================================== */
+
+.home-hero--member {
+    padding-top: clamp(22px, 2.4vw, 32px);
+    padding-bottom: clamp(22px, 2.4vw, 32px);
+}
+
+.home-hero--member .home-hero-title {
+    font-size: clamp(1.6rem, 2.5vw, 2.25rem);
+    margin-top: 0.85rem;
+}
+
+.home-hero--member .home-hero-desc {
+    margin-top: 0.7rem;
+    font-size: 0.97rem;
+}
+
+.home-hero--member .home-hero-actions {
+    margin-top: 1.15rem;
+}
+
+.home-hero--member .home-hero-stats {
+    margin-top: 1.3rem;
+    padding-top: 1.1rem;
+}
+
+.home-hero--member .home-hero-card--players {
+    display: none;
+}
+
+.home-hero--member .home-hero-btn {
+    padding: 0.72rem 1.25rem;
+    font-size: 0.9rem;
+}
+
+/* ==========================================================================
+   5. HERO — keyframes
+   ========================================================================== */
+
+@keyframes heroRise {
+    from { opacity: 0; transform: translateY(26px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes heroFloat {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-9px); }
+}
+
+@keyframes heroSheen {
+    0%   { transform: translateX(-120%); }
+    55%  { transform: translateX(120%); }
+    100% { transform: translateX(120%); }
+}
+
+@keyframes heroOrbA {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%      { transform: translate(70px, 55px) scale(1.16); }
+}
+
+@keyframes heroOrbB {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%      { transform: translate(-65px, 45px) scale(1.12); }
+}
+
+@keyframes heroOrbC {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50%      { transform: translate(55px, -50px) scale(1.2); }
+}
+
+@keyframes heroPulse {
+    0%   { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.65); }
+    70%  { box-shadow: 0 0 0 10px rgba(52, 211, 153, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(52, 211, 153, 0); }
+}
+
+@keyframes heroTwinkle {
+    0%, 100% { opacity: 0.35; }
+    50%      { opacity: 0.9; }
+}
+
+/* ==========================================================================
+   6. HERO — responsive
+   ========================================================================== */
+
+@media (max-width: 1080px) {
+    .home-hero-container {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 1.7rem;
+    }
+
+    .home-hero-visual {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+    }
+
+    .home-hero-card--players {
+        margin-left: 0;
+        animation: none;
+    }
+
+    .home-hero-chip {
+        grid-column: 1 / -1;
+        margin-left: 0;
+        animation: none;
+    }
+
+    .home-hero-desc {
+        max-width: 68ch;
+    }
+}
+
+@media (max-width: 680px) {
+    .home-hero {
+        padding: 24px 18px 26px;
+        border-radius: 24px;
+    }
+
+    .home-hero-title {
+        font-size: clamp(1.7rem, 7vw, 2.2rem);
+    }
+
+    .home-hero-actions {
+        gap: 0.65rem;
+    }
+
+    .home-hero-btn {
+        width: 100%;
+        padding: 0.85rem 1.1rem;
+    }
+
+    .home-hero-stats {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+        gap: 0.55rem;
+    }
+
+    .home-hero-stat {
+        flex: none;
+        min-width: 0;
+    }
+
+    .home-hero-visual {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .home-hero-card--players {
+        display: none;
+    }
+
+    .home-hero-orb--3 {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .home-hero,
+    .home-hero::after,
+    .home-hero-bg,
+    .home-hero-copy,
+    .home-hero-visual,
+    .home-hero-card--players,
+    .home-hero-chip,
+    .home-hero-badge-dot,
+    .home-hero-live-dot,
+    .home-hero-rays {
+        animation: none !important;
+    }
+
+    .home-hero-copy,
+    .home-hero-visual {
+        opacity: 1;
+        transform: none;
+    }
+}
+
+/* ==========================================================================
+   7. INDEX POLISH — fixes for existing home components
+   ========================================================================== */
+
+/* 7.1 Sticky rails sat 104px niche chole jachhilo -> center feed er sathe
+       align korte niche (verified: top:0 -> rail top === feed top, and it
+       parks exactly under the fixed navbar while scrolling). */
+.home-left-rail,
+.home-right-rail {
+    top: 0;
+}
+
+/* Hero already leads with Members / Posts / Public, so the right-rail
+   "Platform snapshot" card would show the exact same three numbers twice.
+   It comes back automatically if the admin slider replaces the hero. */
+.home-page.has-hero .home-rail-card--snapshot {
+    display: none;
+}
+
+/* scroll to #community should not hide under the fixed navbar */
+.home-center-feed {
+    scroll-margin-top: 104px;
+}
+
+/* 7.2 community.css sets .btn-sm { flex: 1 } + grey .btn-outline, which
+       stretched the "View all" / "Browse store" pills into wide grey bars. */
+.home-page .btn-outline {
+    background: transparent;
+    border: 1px solid rgba(59, 130, 246, 0.38);
+    color: #2563eb;
+}
+
+.home-page .btn-outline:hover {
+    background: rgba(59, 130, 246, 0.1);
+    border-color: rgba(59, 130, 246, 0.7);
+    color: #1d4ed8;
+}
+
+.home-showcase-panel-header .btn {
+    flex: 0 0 auto;
+    width: auto;
+    white-space: nowrap;
+    padding: 0.5rem 1rem;
+}
+
+/* 7.3 auto-fill left an empty half-row when a panel had a single item —
+       auto-fit collapses unused tracks so cards fill the row. */
+.home-showcase-grid--tournaments {
+    grid-template-columns: repeat(auto-fit, minmax(255px, 1fr));
+}
+
+.home-showcase-grid--products {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+/* 7.4 Product artwork: remote URLs + missing local files used to render as
+       broken alt text. Placeholder now sits underneath every image. */
+.home-product-card-media {
+    background:
+        radial-gradient(circle at 30% 25%, rgba(99, 102, 241, 0.25), transparent 60%),
+        linear-gradient(135deg, #eef2ff 0%, #e0f2fe 55%, #f5f3ff 100%);
+}
+
+.home-product-card-media::before {
+    content: "\f07a";
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 2rem;
+    color: rgba(99, 102, 241, 0.32);
+    pointer-events: none;
+}
+
+.home-product-card-media img {
+    position: relative;
+    z-index: 1;
+}
+
+/* 7.5 Showcase panel header rhythm */
+.home-showcase-panel-header {
+    align-items: center;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+}
+
+.home-showcase-panel-header h3 {
+    font-size: 1.05rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+}
+
+/* 7.6 Feed intro bar reads as a header, not a floating grey box */
+.home-feed-header-bar {
+    border: 1px solid rgba(148, 163, 184, 0.22);
+}
+
+.home-feed-header-bar .home-feed-invite {
+    max-width: 62ch;
+    line-height: 1.55;
+}
+
+/* ==========================================================================
+   8. INDEX POLISH — dark theme
+   ========================================================================== */
+
+[data-theme="dark"] .home-page .btn-outline {
+    color: #93c5fd;
+    border-color: rgba(96, 165, 250, 0.42);
+    background: rgba(59, 130, 246, 0.08);
+}
+
+[data-theme="dark"] .home-page .btn-outline:hover {
+    background: rgba(59, 130, 246, 0.18);
+    color: #bfdbfe;
+}
+
+[data-theme="dark"] .home-showcase-panel-header {
+    border-bottom-color: rgba(148, 163, 184, 0.18);
+}
+
+[data-theme="dark"] .home-product-card-media {
+    background:
+        radial-gradient(circle at 30% 25%, rgba(129, 140, 248, 0.28), transparent 60%),
+        linear-gradient(135deg, #1e1b4b 0%, #0c1a3a 55%, #1a1035 100%);
+}
+
+[data-theme="dark"] .home-product-card-media::before {
+    color: rgba(165, 180, 252, 0.38);
+}
+
+[data-theme="dark"] .home-product-card,
+[data-theme="dark"] .home-tournament-card {
+    background: linear-gradient(145deg, #2a2b2f, #212226);
+    border-color: rgba(148, 163, 184, 0.16);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+[data-theme="dark"] .home-product-card:hover,
+[data-theme="dark"] .home-tournament-card:hover {
+    border-color: rgba(148, 163, 184, 0.32);
+    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+
+
+[data-theme="dark"] .home-feed-header-bar {
+    border-color: rgba(148, 163, 184, 0.2);
+}
+
+
+/* ===== FIX: horizontal scrollbar in #mainContent =====
+   .home-social-home::before/::after are position:fixed, but .home-page carries a
+   transform (homeFadeIn / scroll effects), which makes .home-page their containing
+   block. The ::after glow (right:-90px + blur(70px)) then spills ~120px past the
+   page box and #mainContent becomes horizontally scrollable. Pull it back inside. */
+.home-social-home::after {
+    right: 40px;
+}

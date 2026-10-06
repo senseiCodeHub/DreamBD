@@ -66,7 +66,7 @@ $staticProductShowcase = [
         'title' => 'Dream Pro Jersey',
         'subtitle' => 'Official team edition apparel',
         'price' => '$29',
-        'image' => 'assets/images/apps/app1.jpg',
+        'image' => '',
         'accent' => 'blue',
         'category' => 'Apparel',
         'badge' => 'New',
@@ -78,7 +78,7 @@ $staticProductShowcase = [
         'title' => 'Creator Stream Deck',
         'subtitle' => 'Hotkeys for tournament and content control',
         'price' => '$79',
-        'image' => 'assets/images/apps/app2.jpg',
+        'image' => '',
         'accent' => 'purple',
         'category' => 'Accessories',
         'badge' => null,
@@ -116,11 +116,20 @@ try {
         $accents = ['blue', 'purple', 'green', 'orange'];
         $homeProductShowcase = array_map(static function ($item, $index) use ($accents) {
             $image = trim((string) ($item['image'] ?? ''));
+            if ($image !== '' && preg_match('#^https?://#i', $image)) {
+                $imageSrc = $image;
+            } elseif ($image !== '' && str_starts_with($image, 'assets/')) {
+                $imageSrc = $image;
+            } elseif ($image !== '' && is_file(__DIR__ . '/../' . $image)) {
+                $imageSrc = $image;
+            } else {
+                $imageSrc = '';
+            }
             return [
                 'title' => $item['name'] ?: 'DreamBD Product',
                 'subtitle' => $item['short_desc'] ?: ($item['description'] ? mb_substr($item['description'], 0, 80) : 'Featured store item'),
                 'price' => '$' . number_format((float) ($item['price'] ?? 0), 2),
-                'image' => $image !== '' ? (str_starts_with($image, 'assets/') ? $image : 'assets/images/products/' . $image) : 'assets/images/apps/app1.jpg',
+                'image' => $imageSrc,
                 'accent' => $accents[$index % count($accents)],
                 'category' => $item['category'] ?? 'General',
                 'badge' => $item['badge'] ?? null,
@@ -183,7 +192,152 @@ try {
 } catch (Throwable $e) {}
 ?>
 
-<div class="home-page home-social-home" data-home-page data-csrf-token="<?php echo htmlspecialchars($homeCsrfToken); ?>" data-viewer-id="<?php echo (int) ($viewerId ?? 0); ?>">
+<div class="home-page home-social-home<?php echo (!($sliderEnabled && $homeSlides)) ? ' has-hero' : ''; ?>" data-home-page data-csrf-token="<?php echo htmlspecialchars($homeCsrfToken); ?>" data-viewer-id="<?php echo (int) ($viewerId ?? 0); ?>">
+
+    <?php if (!($sliderEnabled && $homeSlides)): ?>
+    <?php
+    // Index hero — shown when the admin slider has no active slides.
+    $heroIsGuest = !$viewerId;
+    $heroNameParts = preg_split('/\s+/', trim((string) $userDisplayName));
+    $heroStopWords = ['md', 'mr', 'mrs', 'ms', 'dr', 'prof', 'sir', 'madam'];
+    $heroFirstName = $heroNameParts[0] ?? $userDisplayName;
+    if (count($heroNameParts) > 1 && in_array(strtolower(rtrim($heroFirstName, '.')), $heroStopWords, true)) {
+        $heroFirstName = $heroNameParts[1];
+    }
+    if ($heroFirstName === '' || $heroFirstName === 'Guest') {
+        $heroFirstName = $_SESSION['username'] ?? $userDisplayName;
+    }
+    $heroOnline = (int) ($communityOverview['online_users'] ?? 0);
+    $heroTournamentStatus = (string) ($featuredTournament['status'] ?? 'Upcoming');
+    $heroTournamentLive = stripos($heroTournamentStatus, 'live') !== false;
+    $heroStats = [
+        ['value' => (int) $communityOverview['members'], 'label' => 'Members', 'icon' => 'fa-users'],
+        ['value' => (int) $communityOverview['posts'], 'label' => 'Posts', 'icon' => 'fa-newspaper'],
+        ['value' => (int) $communityOverview['public_posts'], 'label' => 'Public', 'icon' => 'fa-earth-asia'],
+    ];
+    $heroAvatars = array_slice(array_column($suggestedFriends, 'avatar'), 0, 3);
+    ?>
+    <section class="home-hero <?php echo $heroIsGuest ? 'home-hero--guest' : 'home-hero--member'; ?>" data-home-hero>
+        <div class="home-hero-bg" aria-hidden="true">
+            <span class="home-hero-orb home-hero-orb--1"></span>
+            <span class="home-hero-orb home-hero-orb--2"></span>
+            <span class="home-hero-orb home-hero-orb--3"></span>
+            <span class="home-hero-mesh"></span>
+            <span class="home-hero-rays"></span>
+        </div>
+
+        <div class="home-hero-container">
+            <div class="home-hero-copy">
+                <span class="home-hero-badge">
+                    <?php if ($heroIsGuest): ?>
+                        <span class="home-hero-badge-dot"></span> Free to join · Built for gamers
+                    <?php else: ?>
+                        <i class="fas fa-circle-check"></i> Signed in as <?php echo htmlspecialchars($heroFirstName); ?>
+                    <?php endif; ?>
+                </span>
+
+                <h1 class="home-hero-title">
+                    <?php if ($heroIsGuest): ?>
+                        The social home for <span class="home-hero-gradient">gamers &amp; creators</span>
+                    <?php else: ?>
+                        Hey <?php echo htmlspecialchars($heroFirstName); ?>, <span class="home-hero-gradient">your feed is ready.</span>
+                    <?php endif; ?>
+                </h1>
+
+                <p class="home-hero-desc">
+                    <?php if ($heroIsGuest): ?>
+                        Share posts, join tournaments, trade in the store and chat with friends — everything you love about your gaming circle, gathered in one colorful place.
+                    <?php else: ?>
+                        Jump back into the conversation, see what is live right now, or discover something new across the community.
+                    <?php endif; ?>
+                </p>
+
+                <div class="home-hero-actions">
+                    <?php if ($heroIsGuest): ?>
+                        <a href="index.php?page=register" class="home-hero-btn home-hero-btn--primary" data-page="register">
+                            <i class="fas fa-rocket"></i> Create free account
+                        </a>
+                        <a href="index.php?page=community" class="home-hero-btn home-hero-btn--ghost" data-page="community">
+                            <i class="fas fa-compass"></i> Explore the community
+                        </a>
+                    <?php else: ?>
+                        <a href="#community" class="home-hero-btn home-hero-btn--primary" data-no-ajax data-hero-scroll="#community">
+                            <i class="fas fa-arrow-down"></i> Open your feed
+                        </a>
+                        <a href="index.php?page=tournaments" class="home-hero-btn home-hero-btn--ghost" data-page="tournaments">
+                            <i class="fas fa-trophy"></i> Browse tournaments
+                        </a>
+                    <?php endif; ?>
+                </div>
+
+                <div class="home-hero-stats">
+                    <?php foreach ($heroStats as $heroStat): ?>
+                        <div class="home-hero-stat">
+                            <span class="home-hero-stat-icon"><i class="fas <?php echo htmlspecialchars($heroStat['icon']); ?>"></i></span>
+                            <span class="home-hero-stat-body">
+                                <strong class="home-stat-number" data-count="<?php echo $heroStat['value']; ?>">0</strong>
+                                <span><?php echo htmlspecialchars($heroStat['label']); ?></span>
+                            </span>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+
+            <aside class="home-hero-visual" aria-label="DreamBD highlights">
+                <article class="home-hero-card home-hero-card--tournament">
+                    <div class="home-hero-card-glow" aria-hidden="true"></div>
+                    <header>
+                        <span class="home-hero-card-icon"><i class="fas fa-trophy"></i></span>
+                        <span class="home-hero-live <?php echo $heroTournamentLive ? 'is-live' : ''; ?>">
+                            <span class="home-hero-live-dot"></span>
+                            <?php echo $heroTournamentLive ? 'Live now' : htmlspecialchars($heroTournamentStatus); ?>
+                        </span>
+                    </header>
+                    <h3><?php echo htmlspecialchars($featuredTournament['title']); ?></h3>
+                    <p><?php echo htmlspecialchars($featuredTournament['display_time']); ?></p>
+                    <a href="index.php?page=tournaments" class="home-hero-card-link" data-page="tournaments">
+                        View tournament <i class="fas fa-arrow-right"></i>
+                    </a>
+                </article>
+
+                <?php if ($topPlayers): ?>
+                <article class="home-hero-card home-hero-card--players">
+                    <header>
+                        <span class="home-hero-card-kicker"><i class="fas fa-ranking-star"></i> Top this week</span>
+                    </header>
+                    <ul class="home-hero-players">
+                        <?php foreach (array_slice($topPlayers, 0, 3) as $heroPlayer): ?>
+                            <li>
+                                <span class="home-hero-rank">#<?php echo (int) $heroPlayer['rank']; ?></span>
+                                <img src="assets/avatars/<?php echo htmlspecialchars($heroPlayer['avatar'] ?: 'default.png'); ?>" alt="" onerror="this.src='assets/avatars/default.png'">
+                                <span class="home-hero-player-name"><?php echo htmlspecialchars($heroPlayer['display_name']); ?></span>
+                                <span class="home-hero-player-score"><?php echo htmlspecialchars($heroPlayer['score_label']); ?></span>
+                            </li>
+                        <?php endforeach; ?>
+                    </ul>
+                </article>
+                <?php endif; ?>
+
+                <div class="home-hero-chip home-hero-chip--online">
+                    <?php if ($heroAvatars): ?>
+                        <span class="home-hero-avatars">
+                            <?php foreach ($heroAvatars as $heroAvatar): ?>
+                                <img src="assets/avatars/<?php echo htmlspecialchars($heroAvatar ?: 'default.png'); ?>" alt="" onerror="this.src='assets/avatars/default.png'">
+                            <?php endforeach; ?>
+                        </span>
+                    <?php endif; ?>
+                    <span>
+                        <?php if ($heroOnline > 0): ?>
+                            <strong><?php echo number_format($heroOnline); ?></strong> online now
+                        <?php else: ?>
+                            <strong><?php echo number_format((int) $communityOverview['members']); ?></strong> members and counting
+                        <?php endif; ?>
+                    </span>
+                </div>
+            </aside>
+        </div>
+    </section>
+    <?php endif; ?>
 
     <?php if ($sliderEnabled && $homeSlides): ?>
     <section class="home-hero-slider home-hero-slider--social">
@@ -692,7 +846,9 @@ try {
                         <?php foreach ($homeProductShowcase as $pIdx => $item): ?>
                             <article class="home-product-card home-product-card--<?php echo htmlspecialchars($item['accent']); ?>" data-product-idx="<?php echo $pIdx; ?>">
                                 <div class="home-product-card-media">
-                                    <img src="<?php echo htmlspecialchars($item['image']); ?>" alt="<?php echo htmlspecialchars($item['title']); ?>" loading="lazy">
+                                    <?php if (!empty($item['image'])): ?>
+                                    <img src="<?php echo htmlspecialchars($item['image']); ?>" alt="<?php echo htmlspecialchars($item['title']); ?>" loading="lazy" onerror="this.remove()">
+                                    <?php endif; ?>
                                     <?php if (!empty($item['badge'])): ?>
                                     <span class="home-product-card-badge" style="background:<?php echo htmlspecialchars($item['badge_color'] ?? '#3b82f6'); ?>"><?php echo htmlspecialchars($item['badge']); ?></span>
                                     <?php endif; ?>
@@ -761,7 +917,7 @@ try {
                 </div>
             </article>
 
-            <article class="home-rail-card">
+            <article class="home-rail-card home-rail-card--snapshot">
                 <div class="home-rail-card-header">
                     <span class="home-rail-kicker">DreamBD stats</span>
                     <h3>Platform snapshot</h3>
@@ -811,5 +967,6 @@ try {
 <?php include __DIR__ . '/../includes/post-modals.php'; ?>
 
 <link rel="stylesheet" href="<?php echo dream_asset('assets/css/home.css'); ?>">
+<link rel="stylesheet" href="<?php echo dream_asset('assets/css/home-redesign.css'); ?>">
 <script src="<?php echo dream_asset('assets/js/community.js'); ?>" defer></script>
 <script src="<?php echo dream_asset('assets/js/home.js'); ?>" defer></script>

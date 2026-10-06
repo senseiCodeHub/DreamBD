@@ -24,11 +24,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$security->validateCSRFToken($_POST['csrf_token'] ?? '')) {
         $response['message'] = 'Invalid security token. Please try again.';
         $response['errors']['global'] = 'Invalid security token. Please try again.';
-    } elseif (!$security->validateRecaptcha($_POST['g-recaptcha-response'] ?? '')) {
-        $response['message'] = 'Please complete the reCAPTCHA verification.';
-        $response['errors']['global'] = 'Please complete the reCAPTCHA verification.';
-        $response['errors']['recaptcha'] = 'required';
-    } else {
+    }
+    // [RECAPTCHA-TEMP-DISABLED] re-enable by uncommenting the block below
+    // elseif (!$security->validateRecaptcha($_POST['g-recaptcha-response'] ?? '')) {
+    //     $response['message'] = 'Please complete the reCAPTCHA verification.';
+    //     $response['errors']['global'] = 'Please complete the reCAPTCHA verification.';
+    //     $response['errors']['recaptcha'] = 'required';
+    // }
+    else {
         $identifier = trim($_POST['identifier'] ?? '');
         $password = $_POST['password'] ?? '';
         $remember_me = isset($_POST['remember_me']);

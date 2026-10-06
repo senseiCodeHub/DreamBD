@@ -123,8 +123,8 @@ $themeAttr = htmlspecialchars($theme, ENT_QUOTES, 'UTF-8');
     <!-- Font Awesome -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 
-    <!-- Google reCAPTCHA v2 -->
-    <script src="https://www.google.com/recaptcha/api.js" async defer></script>
+    <!-- Google reCAPTCHA v2 [RECAPTCHA-TEMP-DISABLED] -->
+    <!-- <script src="https://www.google.com/recaptcha/api.js" async defer></script> -->
     
     <!-- Custom CSS -->
     <link rel="stylesheet" href="<?php echo dream_asset('assets/css/style.css'); ?>">
@@ -134,6 +134,7 @@ $themeAttr = htmlspecialchars($theme, ENT_QUOTES, 'UTF-8');
     <link rel="stylesheet" href="<?php echo dream_asset('assets/css/social-pages.css'); ?>">
     <link rel="stylesheet" href="<?php echo dream_asset('assets/css/animations.css'); ?>">
     <link rel="stylesheet" href="<?php echo dream_asset('assets/css/community.css'); ?>">
+    <link rel="stylesheet" href="<?php echo dream_asset('assets/css/home-redesign.css'); ?>">
 
     <style>
         body { opacity: 0; }
@@ -643,20 +644,58 @@ $themeAttr = htmlspecialchars($theme, ENT_QUOTES, 'UTF-8');
             }
 
             // ============ Footer: Animate sections on scroll ============
-            const footerObserver = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        entry.target.classList.add('footer-section-visible');
-                        footerObserver.unobserve(entry.target);
-                    }
-                });
-            }, { threshold: 0.1 });
-
-            document.querySelectorAll('.dream-footer .footer-section').forEach((section, index) => {
-                section.style.transitionDelay = `${index * 0.1}s`;
-                footerObserver.observe(section);
-            });
+            // Moved to its own guarded block below so a failure elsewhere in
+            // this handler can never leave the footer stuck at opacity: 0.
         });
+    </script>
+
+    <script>
+        (function () {
+            var reveal = function (section) { section.classList.add('footer-section-visible'); };
+
+            var initFooterReveal = function () {
+                var sections = Array.prototype.slice.call(document.querySelectorAll('.dream-footer .footer-section'));
+                if (!sections.length) return;
+
+                try {
+                    sections.forEach(function (section, index) {
+                        section.style.transitionDelay = (index * 0.1) + 's';
+                    });
+
+                    if (typeof IntersectionObserver === 'undefined') {
+                        sections.forEach(reveal);
+                        return;
+                    }
+
+                    var observer = new IntersectionObserver(function (entries) {
+                        entries.forEach(function (entry) {
+                            if (entry.isIntersecting) {
+                                reveal(entry.target);
+                                observer.unobserve(entry.target);
+                            }
+                        });
+                    }, { threshold: 0.1 });
+
+                    sections.forEach(function (section) { observer.observe(section); });
+
+                    window.setTimeout(function () {
+                        sections.forEach(function (section) {
+                            if (section.classList.contains('footer-section-visible')) return;
+                            var rect = section.getBoundingClientRect();
+                            if (rect.top < window.innerHeight && rect.bottom > 0) reveal(section);
+                        });
+                    }, 2500);
+                } catch (err) {
+                    sections.forEach(reveal);
+                }
+            };
+
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initFooterReveal, { once: true });
+            } else {
+                initFooterReveal();
+            }
+        })();
     </script>
 </body>
 </html>
