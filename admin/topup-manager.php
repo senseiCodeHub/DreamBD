@@ -108,7 +108,24 @@ if ($orderGameFilter && !isset($gamesById[$orderGameFilter])) $orderGameFilter =
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Font Awesome Icon</label>
                 <input type="text" name="icon" id="gIcon" value="fa-gamepad" maxlength="60" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white" placeholder="fa-crosshairs">
-                <p class="text-xs text-gray-400 mt-1">Use a Font Awesome 6 class like <code>fa-crosshairs</code>, <code>fa-gun</code>, <code>fa-bolt</code>.</p>
+                <p class="text-xs text-gray-400 mt-1">Fallback icon used when no logo image is uploaded.</p>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Game Logo <small class="text-gray-400 font-normal">(JPG/PNG/WebP · max 5MB)</small></label>
+                <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-3 hover:border-purple-400 transition">
+                    <input type="file" name="logo" id="gLogo" accept="image/*"
+                        class="block w-full text-sm text-gray-500 dark:text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-purple-50 file:text-purple-700 hover:file:bg-purple-100 dark:file:bg-purple-900/30 dark:file:text-purple-300">
+                    <div id="currentLogo" class="mt-3 hidden">
+                        <div class="text-xs text-gray-500 dark:text-gray-400 mb-1">Current logo:</div>
+                        <div class="flex items-center gap-3">
+                            <img id="currentLogoPreview" src="" alt="" class="w-14 h-14 object-contain rounded-xl border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-900">
+                            <label class="flex items-center gap-2 text-xs text-gray-600 dark:text-gray-300 cursor-pointer">
+                                <input type="checkbox" name="remove_logo" id="gRemoveLogo" value="1"> Remove logo
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-xs text-gray-400 mt-1">Shown on the products page game cards & top-up panel. Falls back to the icon above.</p>
             </div>
             <div>
                 <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Gradient (CSS)</label>
@@ -163,7 +180,13 @@ if ($orderGameFilter && !isset($gamesById[$orderGameFilter])) $orderGameFilter =
                     <tr class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
                         <td class="py-3">
                             <div class="flex items-center gap-3">
+                                <?php if (!empty($game['logo'])): ?>
+                                <span class="w-10 h-10 rounded-xl flex items-center justify-center overflow-hidden bg-gray-100 dark:bg-gray-700" style="background:<?php echo htmlspecialchars($game['gradient'] ?: '#8b5cf6'); ?>">
+                                    <img src="../<?php echo htmlspecialchars($game['logo']); ?>" alt="" class="w-full h-full object-contain" onerror="this.remove()">
+                                </span>
+                                <?php else: ?>
                                 <span class="w-10 h-10 rounded-xl flex items-center justify-center text-white text-sm" style="background:<?php echo htmlspecialchars($game['gradient'] ?: '#8b5cf6'); ?>"><i class="fas <?php echo htmlspecialchars($game['icon'] ?: 'fa-gamepad'); ?>"></i></span>
+                                <?php endif; ?>
                                 <div>
                                     <div class="font-semibold text-gray-800 dark:text-white"><?php echo htmlspecialchars($game['name']); ?></div>
                                     <div class="text-xs text-gray-500"><?php echo htmlspecialchars($game['description'] ?: ''); ?></div>
@@ -416,6 +439,17 @@ window.editGame = function(id) {
     document.getElementById('gDescription').value = g.description || '';
     document.getElementById('gSortOrder').value = g.sort_order || 0;
     document.getElementById('gStatus').value = g.status || 'active';
+    const logoBox = document.getElementById('currentLogo');
+    const logoImg = document.getElementById('currentLogoPreview');
+    const rmLogo = document.getElementById('gRemoveLogo');
+    if (g.logo) {
+        logoBox.classList.remove('hidden');
+        logoImg.src = '../' + g.logo;
+        rmLogo.checked = false;
+    } else {
+        logoBox.classList.add('hidden');
+        rmLogo.checked = false;
+    }
     document.getElementById('gameFormTitle').textContent = 'Edit Game (#' + g.id + ')';
     document.getElementById('gameSubmitText').textContent = 'Update Game';
     document.getElementById('gameCancelBtn').classList.remove('hidden');
@@ -425,6 +459,8 @@ window.editGame = function(id) {
 window.resetGameForm = function() {
     document.getElementById('gameForm').reset();
     document.getElementById('gameId').value = '';
+    document.getElementById('currentLogo').classList.add('hidden');
+    document.getElementById('gRemoveLogo').checked = false;
     document.getElementById('gameFormTitle').textContent = 'Add Game';
     document.getElementById('gameSubmitText').textContent = 'Save Game';
     document.getElementById('gameCancelBtn').classList.add('hidden');

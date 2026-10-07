@@ -647,6 +647,7 @@ function ensureTopupSchema(PDO $db): void {
             slug VARCHAR(80) NOT NULL UNIQUE,
             name VARCHAR(120) NOT NULL,
             icon VARCHAR(60) DEFAULT 'fa-gamepad',
+            logo VARCHAR(255) DEFAULT NULL,
             gradient VARCHAR(255) DEFAULT '',
             shadow_color VARCHAR(50) DEFAULT '',
             description VARCHAR(255) DEFAULT '',
@@ -699,10 +700,11 @@ function ensureTopupSchema(PDO $db): void {
         try { $db->exec($sql); } catch (Throwable $e) {}
     }
 
-    // Products table gets free-preview support columns
+    // Products table gets free-preview support columns; games get a logo column
     $colQueries = [
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS preview_file VARCHAR(255) DEFAULT NULL AFTER preview_text",
         "ALTER TABLE products ADD COLUMN IF NOT EXISTS preview_pages INT UNSIGNED DEFAULT 0 AFTER preview_file",
+        "ALTER TABLE game_topup_games ADD COLUMN IF NOT EXISTS logo VARCHAR(255) DEFAULT NULL AFTER icon",
     ];
     foreach ($colQueries as $sql) {
         try { $db->exec($sql); } catch (Throwable $e) {}

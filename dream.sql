@@ -608,6 +608,7 @@ CREATE TABLE IF NOT EXISTS `game_topup_games` (
   `slug` varchar(80) NOT NULL,
   `name` varchar(120) NOT NULL,
   `icon` varchar(60) DEFAULT 'fa-gamepad',
+  `logo` varchar(255) DEFAULT NULL,
   `gradient` varchar(255) DEFAULT '',
   `shadow_color` varchar(50) DEFAULT '',
   `description` varchar(255) DEFAULT '',

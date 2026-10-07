@@ -85,7 +85,8 @@ $pdfProducts = array_map(function($p) {
     $p['pages'] = (int)$p['pages'];
     $p['preview_pages'] = (int)$p['preview_pages'];
     $p['cover'] = dream_cover($p['name']);
-    $p['has_image'] = is_string($p['image']) && str_starts_with($p['image'], 'assets/');
+    $img = is_string($p['image']) ? trim($p['image']) : '';
+    $p['has_image'] = $img !== '' && (str_starts_with($img, 'assets/') || str_starts_with($img, 'http://') || str_starts_with($img, 'https://'));
     return $p;
 }, $pdfProducts);
 $authors = array_map(function($a) {
@@ -110,6 +111,7 @@ try {
             'slug' => $game['slug'],
             'name' => $game['name'],
             'icon' => $game['icon'],
+            'logo' => $game['logo'] ?? '',
             'gradient' => $game['gradient'],
             'shadow' => $game['shadow_color'],
             'description' => $game['description'],
@@ -342,7 +344,13 @@ if (!function_exists('dream_badge_color')) {
             <?php foreach ($games as $game): ?>
             <button type="button" class="dp-game-card" data-game-id="<?php echo (int)$game['id']; ?>" style="--g-grad: <?php echo htmlspecialchars($game['gradient']); ?>; --g-shadow: <?php echo htmlspecialchars($game['shadow']); ?>">
                 <span class="dp-game-tint" aria-hidden="true"></span>
-                <span class="dp-game-icon"><i class="fas <?php echo htmlspecialchars($game['icon']); ?>"></i></span>
+                <span class="dp-game-icon">
+                    <?php if (!empty($game['logo'])): ?>
+                    <img class="dp-game-logo" src="<?php echo htmlspecialchars($game['logo']); ?>" alt="<?php echo htmlspecialchars($game['name']); ?>" loading="lazy" onerror="this.remove()">
+                    <?php else: ?>
+                    <i class="fas <?php echo htmlspecialchars($game['icon']); ?>"></i>
+                    <?php endif; ?>
+                </span>
                 <h3><?php echo htmlspecialchars($game['name']); ?></h3>
                 <p><?php echo htmlspecialchars($game['description']); ?></p>
                 <span class="dp-game-cta"><span class="dp-game-cta-idle">View Packages <i class="fas fa-arrow-right"></i></span><span class="dp-game-cta-on"><i class="fas fa-check"></i> Selected</span></span>
@@ -621,6 +629,22 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
+    /* ── View-only guards: no right-click save / Ctrl+S / Ctrl+P while a guide modal is open ── */
+    document.addEventListener('contextmenu', function(e) {
+        if (e.target.closest('.dp-modal-overlay')) {
+            e.preventDefault();
+            showToast('This guide is view-only — saving is disabled.');
+        }
+    });
+    document.addEventListener('keydown', function(e) {
+        if (!document.querySelector('.dp-modal-overlay.active')) return;
+        var k = (e.key || '').toLowerCase();
+        if ((e.ctrlKey || e.metaKey) && (k === 's' || k === 'p' || k === 'u')) {
+            e.preventDefault();
+            showToast('This guide is view-only — saving is disabled.');
+        }
+    });
+
     qa('.dp-modal-overlay').forEach(function(overlay) {
         overlay.addEventListener('click', function(e) {
             if (e.target === overlay) { overlay.classList.remove('active'); document.body.style.overflow = ''; }
@@ -658,7 +682,7 @@ document.addEventListener('DOMContentLoaded', function() {
         var hasPreview = !!p.preview_file;
         var frameWrap = $('previewFrameWrap');
         if (hasPreview) {
-            $('previewFrame').src = 'handlers/product_handler.php?action=preview_pdf&product_id=' + pid + '&_=' + Date.now();
+            $('previewFrame').src = 'handlers/product_handler.php?action=preview_pdf&product_id=' + pid + '&_=' + Date.now() + '#toolbar=0&navpanes=0&zoom=page-width';
             frameWrap.style.display = 'block';
             $('previewFreeBadge').innerHTML =
                 '<span class="dp-free-preview-badge"><i class="fas fa-book-open"></i> FREE PREVIEW — ' + p.preview_pages + ' page' + (p.preview_pages > 1 ? 's' : '') + ' of ' + p.pages + '</span>';
@@ -877,7 +901,11 @@ document.addEventListener('DOMContentLoaded', function() {
         var g = tpState.game;
         $('tpTitle').textContent = g.name;
         $('tpDesc').textContent = g.description || 'Select a package';
-        $('tpIcon').innerHTML = '<i class="fas ' + g.icon + '"></i>';
+        if (g.logo) {
+            $('tpIcon').innerHTML = '<img class="dp-game-logo" src="' + g.logo + '" alt="" onerror="this.outerHTML=\'<i class=\\\'fas ' + g.icon + '\\\'></i>\'">';
+        } else {
+            $('tpIcon').innerHTML = '<i class="fas ' + g.icon + '"></i>';
+        }
         $('tpIcon').style.background = g.gradient;
         $('tpDetailIcon').style.background = g.gradient;
         var grid = $('tpPkgGrid');

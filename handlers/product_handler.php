@@ -189,6 +189,10 @@ if ($action === 'preview_pdf') {
         header('Content-Length: ' . filesize($fullPath));
         header('Content-Disposition: inline; filename="' . $filename . '"');
         header('Accept-Ranges: bytes');
+        header('X-Content-Type-Options: nosniff');
+        header('Cache-Control: private, no-store, max-age=0');
+        header('Pragma: no-cache');
+        header('Content-Security-Policy: sandbox');
         readfile($fullPath);
         exit;
     } catch (Throwable $e) {
@@ -350,6 +354,8 @@ if ($action === 'view_page') {
         header('X-Robots-Tag: noindex, nofollow, noarchive');
         header('Cache-Control: private, no-store, max-age=0');
         header('Pragma: no-cache');
+        header('X-Content-Type-Options: nosniff');
+        header('Content-Security-Policy: sandbox');
         $reader->Output('I', $safeName);
         exit;
     } catch (Throwable $e) {

@@ -132,13 +132,59 @@ if ($action === 'save_game') {
     }
 
     try {
+        $logoPath = null;   // null = no change; '' = remove
+        $oldLogo = null;
         if ($gameId > 0) {
-            $stmt = $db->prepare("UPDATE game_topup_games SET name=?, slug=?, icon=?, gradient=?, shadow_color=?, description=?, sort_order=?, status=? WHERE id=?");
-            $stmt->execute([$name, $slug, $icon, $gradient, $shadowColor, $description, $sortOrder, $status, $gameId]);
+            $stmt = $db->prepare("SELECT logo FROM game_topup_games WHERE id = ?");
+            $stmt->execute([$gameId]);
+            $oldLogo = $stmt->fetchColumn() ?: null;
+        }
+
+        if (isset($_FILES['logo']) && is_uploaded_file($_FILES['logo']['tmp_name']) && ($_FILES['logo']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+            $img = $_FILES['logo'];
+            $allowedTypes = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/gif' => 'gif', 'image/webp' => 'webp'];
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $detectedMime = $finfo->file($img['tmp_name']);
+            if (!isset($allowedTypes[$detectedMime])) {
+                echo json_encode(['success' => false, 'message' => 'Logo must be a JPG, PNG, GIF or WebP image.']);
+                exit;
+            }
+            if ($img['size'] > 5 * 1024 * 1024) {
+                echo json_encode(['success' => false, 'message' => 'Logo too large (max 5MB).']);
+                exit;
+            }
+            $uploadDir = __DIR__ . '/../assets/games/';
+            if (!is_dir($uploadDir)) @mkdir($uploadDir, 0755, true);
+            $basename = 'game_' . time() . '_' . bin2hex(random_bytes(4)) . '.' . $allowedTypes[$detectedMime];
+            if (!move_uploaded_file($img['tmp_name'], $uploadDir . $basename)) {
+                echo json_encode(['success' => false, 'message' => 'Could not save the logo file.']);
+                exit;
+            }
+            $logoPath = 'assets/games/' . $basename;
+        } elseif (!empty($_POST['remove_logo'])) {
+            $logoPath = '';
+        }
+
+        $removeOldLogo = function ($path) {
+            if (!$path || !str_starts_with($path, 'assets/games/')) return;
+            $abs = __DIR__ . '/../' . ltrim($path, '/');
+            if (is_file($abs)) @unlink($abs);
+        };
+
+        if ($gameId > 0) {
+            if ($logoPath === null) {
+                $stmt = $db->prepare("UPDATE game_topup_games SET name=?, slug=?, icon=?, gradient=?, shadow_color=?, description=?, sort_order=?, status=? WHERE id=?");
+                $stmt->execute([$name, $slug, $icon, $gradient, $shadowColor, $description, $sortOrder, $status, $gameId]);
+            } else {
+                $stmt = $db->prepare("UPDATE game_topup_games SET name=?, slug=?, icon=?, logo=?, gradient=?, shadow_color=?, description=?, sort_order=?, status=? WHERE id=?");
+                $stmt->execute([$name, $slug, $icon, $logoPath !== '' ? $logoPath : null, $gradient, $shadowColor, $description, $sortOrder, $status, $gameId]);
+                if ($logoPath !== null) $removeOldLogo($oldLogo);
+            }
             echo json_encode(['success' => true, 'message' => 'Game updated.']);
         } else {
-            $stmt = $db->prepare("INSERT INTO game_topup_games (name, slug, icon, gradient, shadow_color, description, sort_order, status) VALUES (?,?,?,?,?,?,?,?)");
-            $stmt->execute([$name, $slug, $icon, $gradient, $shadowColor, $description, $sortOrder, $status]);
+            $stmt = $db->prepare("INSERT INTO game_topup_games (name, slug, icon, logo, gradient, shadow_color, description, sort_order, status) VALUES (?,?,?,?,?,?,?,?,?)");
+            $stmt->execute([$name, $slug, $icon, $logoPath ?: null, $gradient, $shadowColor, $description, $sortOrder, $status]);
+            if ($logoPath === '') $logoPath = null;
             echo json_encode(['success' => true, 'message' => 'Game added.', 'id' => (int)$db->lastInsertId()]);
         }
     } catch (Throwable $e) {
@@ -162,10 +208,17 @@ if ($action === 'get_game') {
 
 if ($action === 'delete_game') {
     $gameId = (int)($_POST['id'] ?? 0);
+    $stmt = $db->prepare("SELECT logo FROM game_topup_games WHERE id = ?");
+    $stmt->execute([$gameId]);
+    $oldLogo = $stmt->fetchColumn() ?: null;
     $stmt = $db->prepare("DELETE FROM game_topup_games WHERE id = ?");
     $stmt->execute([$gameId]);
     $stmt = $db->prepare("DELETE FROM game_topup_packages WHERE game_id = ?");
     $stmt->execute([$gameId]);
+    if ($oldLogo && str_starts_with($oldLogo, 'assets/games/')) {
+        $abs = __DIR__ . '/../' . ltrim($oldLogo, '/');
+        if (is_file($abs)) @unlink($abs);
+    }
     echo json_encode(['success' => true, 'message' => 'Game and its packages deleted.']);
     exit;
 }
