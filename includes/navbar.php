@@ -13,6 +13,21 @@ if (!empty($isLoggedIn) && !empty($_SESSION['user_id']) && class_exists('Databas
     }
 }
 
+$cartCount = 0;
+if (!empty($isLoggedIn) && !empty($_SESSION['user_id']) && class_exists('Database')) {
+    try {
+        $cartStmt = Database::getInstance()->getConnection()->prepare(
+            "SELECT COUNT(*) FROM cart_items ci
+             JOIN products p ON p.id = ci.product_id AND p.status = 'active'
+             WHERE ci.user_id = ?"
+        );
+        $cartStmt->execute([(int) $_SESSION['user_id']]);
+        $cartCount = (int) $cartStmt->fetchColumn();
+    } catch (Throwable $e) {
+        $cartCount = 0;
+    }
+}
+
 $primaryLinks = [
     ['page' => 'home', 'href' => 'index.php', 'icon' => 'fa-home', 'label' => 'Home'],
     ['page' => 'community', 'href' => 'index.php?page=community', 'icon' => 'fa-users', 'label' => 'Community'],
@@ -106,8 +121,11 @@ $displayName = htmlspecialchars(explode(' ', $user_name ?? 'User')[0] ?? 'User')
                 <i class="fas fa-sun hidden"></i>
             </button>
 
-            <a href="index.php?page=cart" class="dream-icon-btn dream-cart-btn" data-page="cart" aria-label="Cart">
+            <a href="index.php?page=cart" class="dream-icon-btn dream-counter-btn dream-cart-btn" data-page="cart" aria-label="Cart">
                 <i class="fas fa-cart-shopping"></i>
+                <?php if ($cartCount > 0): ?>
+                    <span class="dream-counter-badge"><?php echo $cartCount > 9 ? '9+' : $cartCount; ?></span>
+                <?php endif; ?>
             </a>
 
             <?php if ($isLoggedIn): ?>

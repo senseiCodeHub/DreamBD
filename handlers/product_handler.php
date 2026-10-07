@@ -54,20 +54,83 @@ function dream_generate_pdf_preview($sourcePath, $previewDir, $maxPages = 3) {
     }
 }
 
+function dream_reader_token($productId, $userId, $expires) {
+    return hash_hmac('sha256', $productId . '|' . $userId . '|' . $expires, DatabaseConfig::getJwtSecret());
+}
+
+function dream_pdf_page_count($filePath) {
+    if (!is_file($filePath)) return 0;
+    if (!class_exists('setasign\\Fpdi\\Fpdi')) return 0;
+    try {
+        $pdf = new setasign\Fpdi\Fpdi();
+        $count = (int)$pdf->setSourceFile($filePath);
+        return $count > 0 ? $count : 0;
+    } catch (Throwable $e) {
+        error_log('PDF page count error: ' . $e->getMessage());
+        return 0;
+    }
+}
+
+/**
+ * Returns the real page count of a product PDF, correcting the stored value
+ * if the file disagrees with it (manual/estimated page counts are common).
+ */
+function dream_product_pages(PDO $db, $product) {
+    $stored = max(0, (int)$product['pages']);
+    $path = __DIR__ . '/../' . ltrim((string)$product['file_path'], '/');
+    $real = dream_pdf_page_count($path);
+    if ($real > 0) {
+        if ($real !== $stored) {
+            try {
+                $stmt = $db->prepare('UPDATE products SET pages = ? WHERE id = ?');
+                $stmt->execute([$real, $product['id']]);
+            } catch (Throwable $e) {
+                error_log('Could not correct products.pages: ' . $e->getMessage());
+            }
+        }
+        return $real;
+    }
+    return $stored > 0 ? $stored : 1;
+}
+
+/**
+ * Buyer (completed purchase), the product's own author, or an admin can read.
+ */
+function dream_can_read_product(PDO $db, $userId, $userRole, $adminRoles, $product) {
+    if ((int)$product['author_id'] === (int)$userId) return true;
+    if (dream_is_admin($userRole, $adminRoles)) return true;
+    $stmt = $db->prepare("SELECT id FROM product_purchases WHERE user_id = ? AND product_id = ? AND status = 'completed' LIMIT 1");
+    $stmt->execute([(int)$userId, (int)$product['id']]);
+    return (bool)$stmt->fetch();
+}
+
 function dream_resize_uploaded_image($srcPath, $maxWidth = 1200, $maxHeight = 1200, $quality = 85) {
+    if (!function_exists('getimagesize')) return false;
     $imageInfo = @getimagesize($srcPath);
     if ($imageInfo === false) return false;
 
     list($origWidth, $origHeight, $type) = $imageInfo;
     if ($origWidth <= $maxWidth && $origHeight <= $maxHeight) return true;
 
-    switch ($type) {
-        case IMAGETYPE_JPEG: $src = @imagecreatefromjpeg($srcPath); break;
-        case IMAGETYPE_PNG:  $src = @imagecreatefrompng($srcPath); break;
-        case IMAGETYPE_GIF:  $src = @imagecreatefromgif($srcPath); break;
-        case IMAGETYPE_WEBP: $src = @imagecreatefromwebp($srcPath); break;
-        default: return false;
+    $loaders = [
+        IMAGETYPE_JPEG => 'imagecreatefromjpeg',
+        IMAGETYPE_PNG  => 'imagecreatefrompng',
+        IMAGETYPE_GIF  => 'imagecreatefromgif',
+        IMAGETYPE_WEBP => 'imagecreatefromwebp',
+    ];
+    $savers = [
+        IMAGETYPE_JPEG => 'imagejpeg',
+        IMAGETYPE_PNG  => 'imagepng',
+        IMAGETYPE_GIF  => 'imagegif',
+        IMAGETYPE_WEBP => 'imagewebp',
+    ];
+    if (!isset($loaders[$type])) return false;
+    if (!function_exists($loaders[$type]) || !function_exists($savers[$type])) {
+        // GD not available on this PHP build — keep the original image instead of crashing.
+        return true;
     }
+
+    $src = @$loaders[$type]($srcPath);
     if (!$src) return false;
 
     $ratio = min($maxWidth / $origWidth, $maxHeight / $origHeight);
@@ -153,15 +216,16 @@ if ($action === 'download_pdf') {
             header('HTTP/1.1 404 Not Found');
             exit('PDF not available');
         }
-        $isOwner = false;
-        if ($userId === (int)$product['author_id']) $isOwner = true;
-        if (dream_is_admin($userRole, $adminRoles)) $isOwner = true;
-        if (!$isOwner) {
+        $isStaff = false;
+        if ($userId === (int)$product['author_id']) $isStaff = true;
+        if (dream_is_admin($userRole, $adminRoles)) $isStaff = true;
+        if (!$isStaff) {
             $stmt = $db->prepare("SELECT id FROM product_purchases WHERE user_id = ? AND product_id = ? AND status = 'completed' LIMIT 1");
             $stmt->execute([$userId, $productId]);
-            $isOwner = (bool)$stmt->fetch();
-        }
-        if (!$isOwner) {
+            if ($stmt->fetch()) {
+                header('HTTP/1.1 403 Forbidden');
+                exit('Downloading is disabled. Please use the in-site reader.');
+            }
             header('HTTP/1.1 403 Forbidden');
             exit('Purchase required to download');
         }
@@ -187,6 +251,111 @@ if ($action === 'download_pdf') {
 if (!$auth->isLoggedIn()) {
     echo json_encode(['success' => false, 'message' => 'Please login first.']);
     exit;
+}
+
+/**
+ * VIEW-ONLY READER -----------------------------------------------
+ * read_meta  : returns total page count + a signed, expiring token.
+ * view_page  : streams ONE page of the PDF as an inline document.
+ * The token is bound to (product, user, expiry) so links cannot be shared.
+ */
+if ($action === 'read_meta') {
+    $productId = (int)($_REQUEST['product_id'] ?? 0);
+    if (!$productId) {
+        echo json_encode(['success' => false, 'message' => 'Invalid product.']);
+        exit;
+    }
+    try {
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("SELECT id, name, file_path, file_type, author_id, pages FROM products WHERE id = ? AND status != 'inactive'");
+        $stmt->execute([$productId]);
+        $product = $stmt->fetch();
+        if (!$product || !$product['file_path'] || $product['file_type'] !== 'pdf') {
+            echo json_encode(['success' => false, 'message' => 'This guide has no readable file yet.']);
+            exit;
+        }
+        if (!dream_can_read_product($db, $userId, $userRole, $adminRoles, $product)) {
+            echo json_encode(['success' => false, 'requires_purchase' => true, 'message' => 'You need to buy this guide before you can read it.']);
+            exit;
+        }
+        $pages = dream_product_pages($db, $product);
+        $expires = time() + 3600;
+        echo json_encode([
+            'success' => true,
+            'name'    => $product['name'],
+            'pages'   => $pages,
+            'expires' => $expires,
+            'token'   => dream_reader_token($productId, $userId, $expires),
+            'can_download' => ((int)$product['author_id'] === (int)$userId || dream_is_admin($userRole, $adminRoles)),
+        ]);
+        exit;
+    } catch (Throwable $e) {
+        error_log('read_meta error: ' . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Server error. Please try again.']);
+        exit;
+    }
+}
+
+if ($action === 'view_page') {
+    $productId = (int)($_GET['product_id'] ?? 0);
+    $page      = max(1, (int)($_GET['page'] ?? 1));
+    $expires   = (int)($_GET['expires'] ?? 0);
+    $token     = (string)($_GET['token'] ?? '');
+
+    $fail = function ($code, $msg) {
+        http_response_code($code);
+        header('Content-Type: text/plain; charset=utf-8');
+        exit($msg);
+    };
+
+    if (!$productId || $expires < time() || !hash_equals(dream_reader_token($productId, $userId, $expires), $token)) {
+        $fail(403, 'This reading link is invalid or has expired. Re-open the guide to continue.');
+    }
+    try {
+        $db = Database::getInstance()->getConnection();
+        $stmt = $db->prepare("SELECT id, name, file_path, file_type, author_id, pages FROM products WHERE id = ? AND status != 'inactive'");
+        $stmt->execute([$productId]);
+        $product = $stmt->fetch();
+        if (!$product || !$product['file_path'] || $product['file_type'] !== 'pdf') {
+            $fail(404, 'PDF not available');
+        }
+        if (!dream_can_read_product($db, $userId, $userRole, $adminRoles, $product)) {
+            $fail(403, 'Purchase required');
+        }
+        $totalPages = dream_product_pages($db, $product);
+        if ($page > $totalPages) {
+            $fail(404, 'Page not found');
+        }
+        $fullPath = __DIR__ . '/../' . ltrim($product['file_path'], '/');
+        if (!is_file($fullPath)) {
+            $fail(404, 'File missing');
+        }
+        if (!class_exists('setasign\\Fpdi\\Fpdi')) {
+            $fail(500, 'Reader not available');
+        }
+        $reader = new setasign\Fpdi\Fpdi();
+        $reader->setSourceFile($fullPath);
+        $templateId = $reader->importPage($page);
+        $size = $reader->getTemplateSize($templateId);
+        if (!$size) {
+            $fail(500, 'Could not render page');
+        }
+        $orientation = ($size['width'] > $size['height']) ? 'L' : 'P';
+        $reader->AddPage($orientation, [$size['width'], $size['height']]);
+        $reader->useTemplate($templateId);
+
+        $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $product['name']) . '-p' . $page . '.pdf';
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: inline; filename="' . $safeName . '"');
+        header('X-Robots-Tag: noindex, nofollow, noarchive');
+        header('Cache-Control: private, no-store, max-age=0');
+        header('Pragma: no-cache');
+        $reader->Output('I', $safeName);
+        exit;
+    } catch (Throwable $e) {
+        error_log('view_page error: ' . $e->getMessage());
+        $fail(500, 'Server error');
+    }
 }
 
 if ($action === 'buy_product') {
@@ -352,6 +521,75 @@ if ($action === 'delete_product') {
     exit;
 }
 
+if ($action === 'refund_purchase') {
+    if (!dream_is_admin($userRole, $adminRoles)) {
+        echo json_encode(['success' => false, 'message' => 'Permission denied.']);
+        exit;
+    }
+    $purchaseId = (int)($_POST['id'] ?? 0);
+    if (!$purchaseId) {
+        echo json_encode(['success' => false, 'message' => 'Invalid ID.']);
+        exit;
+    }
+    try {
+        $stmt = $db->prepare("SELECT pp.*, p.name AS product_name, p.author_id, p.sales
+                              FROM product_purchases pp
+                              LEFT JOIN products p ON p.id = pp.product_id
+                              WHERE pp.id = ? LIMIT 1");
+        $stmt->execute([$purchaseId]);
+        $purchase = $stmt->fetch();
+        if (!$purchase) {
+            echo json_encode(['success' => false, 'message' => 'Purchase not found.']);
+            exit;
+        }
+        if ($purchase['status'] !== 'completed') {
+            echo json_encode(['success' => false, 'message' => 'Only completed purchases can be refunded.']);
+            exit;
+        }
+
+        $amount = (float)$purchase['amount'];
+        $authorEarning = (float)($purchase['author_earnings'] ?? 0);
+        $buyerId = (int)$purchase['user_id'];
+        $authorId = (int)($purchase['author_id'] ?? 0);
+
+        $db->beginTransaction();
+
+        $stmt = $db->prepare("SELECT balance FROM users WHERE id = ?");
+        $stmt->execute([$buyerId]);
+        $buyerBefore = (float)($stmt->fetchColumn() ?: 0);
+
+        $stmt = $db->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
+        $stmt->execute([$amount, $buyerId]);
+
+        $stmt = $db->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, purpose) VALUES (?, 'refund', ?, ?, ?, ?, 'product_refund')");
+        $stmt->execute([$buyerId, $amount, $buyerBefore, ($buyerBefore + $amount), 'Refund: ' . ($purchase['product_name'] ?? 'product')]);
+
+        if ($authorId && $authorEarning > 0) {
+            $stmt = $db->prepare("UPDATE users SET balance = GREATEST(balance - ?, 0) WHERE id = ?");
+            $stmt->execute([$authorEarning, $authorId]);
+        }
+
+        if (!empty($purchase['product_id'])) {
+            $stmt = $db->prepare("UPDATE products SET sales = GREATEST(sales - 1, 0) WHERE id = ?");
+            $stmt->execute([(int)$purchase['product_id']]);
+        }
+
+        $stmt = $db->prepare("UPDATE product_purchases SET status = 'refunded' WHERE id = ?");
+        $stmt->execute([$purchaseId]);
+
+        $stmt = $db->prepare("INSERT INTO notifications (user_id, actor_id, type, entity_id, message) VALUES (?, ?, 'product_refund', ?, ?)");
+        $stmt->execute([$buyerId, $userId, (int)($purchase['product_id'] ?? 0), 'Your payment for "' . ($purchase['product_name'] ?? 'a product') . '" was refunded.']);
+
+        $db->commit();
+        echo json_encode(['success' => true, 'message' => 'Refund completed. ' . number_format($amount, 2) . ' returned to the buyer.']);
+    } catch (Throwable $e) {
+        if (isset($db) && $db->inTransaction()) $db->rollBack();
+        error_log("Product refund error: " . $e->getMessage());
+        echo json_encode(['success' => false, 'message' => 'Server error. Please try again.']);
+    }
+    exit;
+}
+
 if ($action === 'add_product' || $action === 'update_product') {
     $productId = $action === 'update_product' ? (int)($_POST['id'] ?? 0) : 0;
     $name = trim($_POST['name'] ?? '');
@@ -498,6 +736,12 @@ if ($action === 'add_product' || $action === 'update_product') {
         $previewPages = (int)($existingProduct['preview_pages'] ?? 0);
     }
 
+    $statusNote = '';
+    if ($status === 'active' && (empty($filePath) || $fileType !== 'pdf')) {
+        $status = 'pending';
+        $statusNote = ' No PDF attached, so the product was saved as Pending. Upload the file to publish it.';
+    }
+
     try {
         if ($action === 'add_product') {
             $authorId = $userId;
@@ -514,7 +758,7 @@ if ($action === 'add_product' || $action === 'update_product') {
             $msg = dream_is_admin($userRole, $adminRoles)
                 ? 'Product created successfully.'
                 : 'Product submitted for admin approval.';
-            echo json_encode(['success' => true, 'message' => $msg, 'id' => (int)$db->lastInsertId()]);
+            echo json_encode(['success' => true, 'message' => $msg . $statusNote, 'id' => (int)$db->lastInsertId()]);
         } else {
             $fields = "name=?, description=?, short_desc=?, price=?, image=?, file_path=?, file_type=?,
                        badge=?, badge_color=?, rating=?, sales=?, pages=?, category=?, stock=?, status=?,
@@ -527,7 +771,7 @@ if ($action === 'add_product' || $action === 'update_product') {
             ];
             $stmt = $db->prepare("UPDATE products SET $fields WHERE id=?");
             $stmt->execute($params);
-            echo json_encode(['success' => true, 'message' => 'Product updated.']);
+            echo json_encode(['success' => true, 'message' => 'Product updated.' . $statusNote]);
         }
     } catch (Throwable $e) {
         echo json_encode(['success' => false, 'message' => $e->getMessage()]);

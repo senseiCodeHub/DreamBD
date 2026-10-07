@@ -136,6 +136,11 @@ try {
                             <i class="fas fa-<?php echo $sliderEnabled === '1' ? 'check-circle' : 'times-circle'; ?>"></i>
                             <?php echo $sliderEnabled === '1' ? 'Visible' : 'Hidden'; ?>
                         </div>
+                        <p class="text-[11px] leading-snug text-amber-600 dark:text-amber-300/90 bg-amber-50 dark:bg-amber-900/25 border border-amber-200 dark:border-amber-800/50 rounded-lg px-2 py-1.5 mt-2 max-w-[15rem] mx-auto">
+                            <i class="fas fa-triangle-exclamation mr-1"></i>
+                            <strong>ON</strong> = the slider takes over the top of the home hero.
+                            <strong>OFF</strong> = the standard hero shows instead. Slides still stay saved either way.
+                        </p>
                     </div>
                 </div>
             </article>

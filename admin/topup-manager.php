@@ -49,9 +49,11 @@ try {
 $tab = $_GET['tab'] ?? 'games';
 $activeGameId = (int)($_GET['game'] ?? 0);
 $orderFilter = $_GET['of'] ?? '';
+$orderGameFilter = (int)($_GET['gf'] ?? 0);
 $validTabs = ['games', 'packages', 'orders'];
 if (!in_array($tab, $validTabs, true)) $tab = 'games';
 $orderStatusFilter = in_array($orderFilter, ['', 'pending', 'processing', 'completed', 'cancelled'], true) ? $orderFilter : '';
+if ($orderGameFilter && !isset($gamesById[$orderGameFilter])) $orderGameFilter = 0;
 ?>
 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8 slide-in">
     <div class="stat-card bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
@@ -169,7 +171,7 @@ $orderStatusFilter = in_array($orderFilter, ['', 'pending', 'processing', 'compl
                             </div>
                         </td>
                         <td class="py-3 text-center"><a href="topup-manager.php?tab=packages&game=<?php echo $game['id']; ?>" class="text-purple-600 hover:underline"><?php echo (int)($packageCounts[$game['id']] ?? 0); ?></a></td>
-                        <td class="py-3 text-center text-gray-700 dark:text-gray-300"><a href="topup-manager.php?tab=orders&of=<?php echo $game['name'] ? '' : ''; ?>" class="text-blue-600 hover:underline">view</a></td>
+                        <td class="py-3 text-center text-gray-700 dark:text-gray-300"><a href="topup-manager.php?tab=orders&gf=<?php echo (int)$game['id']; ?>" class="text-blue-600 hover:underline">view</a></td>
                         <td class="py-3 text-center">
                             <button type="button" onclick="toggleGame(<?php echo $game['id']; ?>, '<?php echo $game['status'] === 'active' ? 'inactive' : 'active'; ?>')" class="inline-block px-2.5 py-1 rounded-full text-xs font-medium <?php echo $game['status'] === 'active' ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400'; ?>"><?php echo ucfirst($game['status']); ?></button>
                         </td>
@@ -300,8 +302,14 @@ $orderStatusFilter = in_array($orderFilter, ['', 'pending', 'processing', 'compl
         <h2 class="text-xl font-bold text-gray-800 dark:text-white"><i class="fas fa-truck-fast text-green-500 mr-2"></i>Top-Up Orders (<?php echo $orderCounts['all']; ?>)</h2>
         <div class="flex flex-wrap gap-2">
             <?php foreach (['' => 'All', 'pending' => 'Pending', 'processing' => 'Processing', 'completed' => 'Completed', 'cancelled' => 'Cancelled'] as $fkey => $flabel): ?>
-            <a href="topup-manager.php?tab=orders&of=<?php echo $fkey; ?>" class="px-3 py-1.5 rounded-full text-xs font-medium <?php echo $orderStatusFilter === $fkey ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'; ?>"><?php echo $flabel; ?></a>
+            <a href="topup-manager.php?tab=orders&of=<?php echo $fkey; ?><?php echo $orderGameFilter ? '&gf=' . $orderGameFilter : ''; ?>" class="px-3 py-1.5 rounded-full text-xs font-medium <?php echo $orderStatusFilter === $fkey ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'; ?>"><?php echo $flabel; ?></a>
             <?php endforeach; ?>
+            <select onchange="if(this.value){window.location.href='topup-manager.php?tab=orders<?php echo $orderStatusFilter !== '' ? '&of=' . $orderStatusFilter : ''; ?>&gf='+this.value}else{window.location.href='topup-manager.php?tab=orders<?php echo $orderStatusFilter !== '' ? '&of=' . $orderStatusFilter : ''; ?>'}" class="px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 border-0 cursor-pointer">
+                <option value="">All games</option>
+                <?php foreach ($games as $gf): ?>
+                <option value="<?php echo (int)$gf['id']; ?>" <?php echo $orderGameFilter === (int)$gf['id'] ? 'selected' : ''; ?>><?php echo htmlspecialchars($gf['name']); ?></option>
+                <?php endforeach; ?>
+            </select>
         </div>
     </div>
 
@@ -324,6 +332,7 @@ $orderStatusFilter = in_array($orderFilter, ['', 'pending', 'processing', 'compl
             <tbody>
                 <?php foreach ($orders as $order):
                     if ($orderStatusFilter !== '' && $order['status'] !== $orderStatusFilter) continue;
+                    if ($orderGameFilter && (int)($order['game_id'] ?? 0) !== $orderGameFilter) continue;
                 ?>
                 <tr class="border-b border-gray-100 dark:border-gray-700/50 hover:bg-gray-50 dark:hover:bg-gray-700/30 transition">
                     <td class="py-3">

@@ -236,6 +236,11 @@ try {
                 <span class="sidebar-text font-medium">Products</span>
             </a>
 
+            <a href="product-orders.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'product-orders' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
+                <i class="fas fa-receipt w-6 text-center text-lg"></i>
+                <span class="sidebar-text font-medium">Product Orders</span>
+            </a>
+
             <a href="topup-manager.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'topup' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
                 <i class="fas fa-gamepad w-6 text-center text-lg"></i>
                 <span class="sidebar-text font-medium">Game Top-Up</span>

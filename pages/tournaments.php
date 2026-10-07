@@ -1538,7 +1538,7 @@ function loadLeaderboard() {
             var html = '';
             res.standings.forEach(function(c, i) {
                 var rankClass = i===0 ? 'gold' : (i===1 ? 'silver' : (i===2 ? 'bronze' : ''));
-                html += '<a href="index.php?page=clubs&club_id=' + c.id + '" class="gp-lb-row">';
+                html += '<a href="index.php?page=tournaments&club_id=' + c.id + '#clubs" class="gp-lb-row">';
                 html += '<div class="gp-lb-rank ' + rankClass + '">' + (i+1) + '</div>';
                 html += '<div style="display:flex;align-items:center;gap:8px;font-weight:700;color:var(--gp-text)"><span style="width:10px;height:10px;border-radius:50%;background:' + (c.colour || '#7c3aed') + ';flex-shrink:0"></span>' + c.name + '</div>';
                 html += '<div class="gp-lb-cell">' + (c.total_club_points || c.total_points || 0) + '</div>';
@@ -1555,7 +1555,7 @@ function loadLeaderboard() {
             var html = '';
             res.leaderboard.forEach(function(p, i) {
                 var rankClass = i===0 ? 'gold' : (i===1 ? 'silver' : (i===2 ? 'bronze' : ''));
-                html += '<div class="gp-lb-row" onclick="window.location.href=\'index.php?page=player-market&user_id=' + p.user_id + '\'">';
+                html += '<div class="gp-lb-row" onclick="window.location.href=\'index.php?page=profile&user=' + p.user_id + '\'">';
                 html += '<div class="gp-lb-rank ' + rankClass + '">' + (i+1) + '</div>';
                 html += '<div style="display:flex;align-items:center;gap:8px;font-weight:600;color:var(--gp-text)">';
                 if (p.avatar) html += '<img src="assets/avatars/' + p.avatar + '" style="width:28px;height:28px;border-radius:50%;object-fit:cover" onerror="this.style.display=\'none\'">';

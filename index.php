@@ -28,7 +28,7 @@ if ($isLoggedIn && !empty($_SESSION['user_id'])) {
 }
 
 $page = $_GET['page'] ?? 'home';
-$allowed_pages = ['home', 'community', 'products', 'tournaments', 'tournament-room', 'how-it-works', 'cart', 'login', 'register', 'rules', 'faq', 'profile', 'messages', 'notifications', 'search', 'agent-dashboard', 'balance', 'p2p', 'admin', 'agent_submit_results', 'verify', 'reset_password', 'clubs', 'player-market', 'seller-upload'];
+$allowed_pages = ['home', 'community', 'products', 'tournaments', 'tournament-room', 'how-it-works', 'cart', 'login', 'register', 'rules', 'faq', 'contact', 'profile', 'messages', 'notifications', 'search', 'agent-dashboard', 'balance', 'p2p', 'admin', 'agent_submit_results', 'verify', 'reset_password', 'seller-upload'];
 $page = in_array($page, $allowed_pages) ? $page : 'home';
 
 $is_ajax = isset($_SERVER['HTTP_X_REQUESTED_WITH']) && 
