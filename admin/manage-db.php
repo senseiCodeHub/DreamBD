@@ -150,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 // Fix users table: add AUTO_INCREMENT, PRIMARY KEY, role, etc.
                 try {
                     $fixNeeded = false;
-                    $stmt = $db->query("SELECT EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '" . DatabaseConfig::DB_NAME . "' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'id'");
+                    $stmt = $db->query("SELECT EXTRA FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = '" . DatabaseConfig::getName() . "' AND TABLE_NAME = 'users' AND COLUMN_NAME = 'id'");
                     $row = $stmt->fetch();
                     if (!$row || strpos(strtolower($row['EXTRA'] ?? ''), 'auto_increment') === false) {
                         $fixNeeded = true;
@@ -161,7 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                         $stmt = $db->query("SELECT COUNT(*) FROM users WHERE id = 0");
                         if ((int) $stmt->fetchColumn() > 0) {
                             // Drop FK constraints referencing users.id
-                            $fkStmt = $db->query("SELECT TABLE_NAME, CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_NAME = 'users' AND REFERENCED_COLUMN_NAME = 'id' AND TABLE_SCHEMA = '" . DatabaseConfig::DB_NAME . "'");
+                            $fkStmt = $db->query("SELECT TABLE_NAME, CONSTRAINT_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE REFERENCED_TABLE_NAME = 'users' AND REFERENCED_COLUMN_NAME = 'id' AND TABLE_SCHEMA = '" . DatabaseConfig::getName() . "'");
                             $fks = $fkStmt->fetchAll();
                             $dropped = [];
                             foreach ($fks as $fk) {
@@ -184,7 +184,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                             
                             foreach ($dropped as $fk) {
                                 try {
-                                    $colStmt = $db->query("SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE CONSTRAINT_NAME = '{$fk['CONSTRAINT_NAME']}' AND TABLE_SCHEMA = '" . DatabaseConfig::DB_NAME . "'");
+                                    $colStmt = $db->query("SELECT COLUMN_NAME FROM information_schema.KEY_COLUMN_USAGE WHERE CONSTRAINT_NAME = '{$fk['CONSTRAINT_NAME']}' AND TABLE_SCHEMA = '" . DatabaseConfig::getName() . "'");
                                     $col = $colStmt->fetchColumn();
                                     if ($col) $db->exec("ALTER TABLE `{$fk['TABLE_NAME']}` ADD CONSTRAINT `{$fk['CONSTRAINT_NAME']}` FOREIGN KEY (`{$col}`) REFERENCES users(id) ON DELETE CASCADE");
                                 } catch (PDOException $e) {}

@@ -14,8 +14,8 @@ $db = Database::getInstance()->getConnection();
 // Get system stats
 $stats = [
     'php_version' => phpversion(),
-    'db_name' => DatabaseConfig::DB_NAME,
-    'db_host' => DatabaseConfig::DB_HOST,
+    'db_name' => DatabaseConfig::getName(),
+    'db_host' => DatabaseConfig::getHost(),
     'server' => $_SERVER['SERVER_SOFTWARE'] ?? 'Unknown',
     'memory_usage' => round(memory_get_usage() / 1024 / 1024, 2),
     'execution_time' => round(microtime(true) - $_SERVER['REQUEST_TIME_FLOAT'], 4),
@@ -31,7 +31,7 @@ try {
     $stats['session_count'] = $db->query("SELECT COUNT(*) FROM user_sessions WHERE expires_at > NOW()")->fetch(PDO::FETCH_COLUMN);
 
     $stmt = $db->prepare("SELECT SUM(data_length + index_length) / 1024 / 1024 AS size FROM information_schema.tables WHERE table_schema = ?");
-    $stmt->execute([DatabaseConfig::DB_NAME]);
+    $stmt->execute([DatabaseConfig::getName()]);
     $stats['db_size'] = round($stmt->fetch(PDO::FETCH_COLUMN) ?: 0, 2);
 } catch (PDOException $e) {
     // Tables might not exist

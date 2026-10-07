@@ -119,10 +119,10 @@ try {
                 if ($reg['count'] > $maxCount) $maxCount = $reg['count'];
             }
             foreach ($analytics['user_registrations'] as $reg):
-                $height = ($reg['count'] / $maxCount) * 100;
+                $height = ($reg['count'] / $maxCount) * 78;
             ?>
-            <div class="flex-1 flex flex-col items-center">
-                <div class="w-full bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-lg hover:from-blue-600 hover:to-blue-500 transition-all cursor-pointer"
+            <div class="flex-1 h-full flex flex-col items-center justify-end">
+                <div class="w-full bg-gradient-to-t from-violet-600 to-violet-400 rounded-t-lg hover:from-violet-700 hover:to-violet-500 transition-all cursor-pointer"
                      style="height: <?php echo $height; ?>%"
                      title="<?php echo $reg['month']; ?>: <?php echo $reg['count']; ?> users">
                 </div>

@@ -34,10 +34,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toggle_slider'])) {
 }
 
 $dashboardStats = [
-    ['label' => 'Users', 'value' => 0, 'icon' => 'fa-users', 'color' => 'text-blue-500'],
-    ['label' => 'Posts', 'value' => 0, 'icon' => 'fa-newspaper', 'color' => 'text-emerald-500'],
-    ['label' => 'Friendships', 'value' => 0, 'icon' => 'fa-user-group', 'color' => 'text-violet-500'],
-    ['label' => 'Slides', 'value' => 0, 'icon' => 'fa-sliders-h', 'color' => 'text-purple-500'],
+    ['label' => 'Users', 'value' => 0, 'icon' => 'fa-users', 'tint' => 'bg-blue-100 dark:bg-blue-900/30', 'iconColor' => 'text-blue-600 dark:text-blue-400', 'chip' => 'bg-blue-50 text-blue-600 dark:bg-blue-900/40 dark:text-blue-300', 'chipLabel' => 'Members'],
+    ['label' => 'Posts', 'value' => 0, 'icon' => 'fa-newspaper', 'tint' => 'bg-emerald-100 dark:bg-emerald-900/30', 'iconColor' => 'text-emerald-600 dark:text-emerald-400', 'chip' => 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-300', 'chipLabel' => 'Feed'],
+    ['label' => 'Friendships', 'value' => 0, 'icon' => 'fa-user-group', 'tint' => 'bg-violet-100 dark:bg-violet-900/30', 'iconColor' => 'text-violet-600 dark:text-violet-400', 'chip' => 'bg-violet-50 text-violet-600 dark:bg-violet-900/40 dark:text-violet-300', 'chipLabel' => 'Network'],
+    ['label' => 'Slides', 'value' => 0, 'icon' => 'fa-sliders', 'tint' => 'bg-amber-100 dark:bg-amber-900/30', 'iconColor' => 'text-amber-600 dark:text-amber-400', 'chip' => 'bg-amber-50 text-amber-600 dark:bg-amber-900/40 dark:text-amber-300', 'chipLabel' => 'Slider'],
 ];
 
 $recentUsers = [];
@@ -81,18 +81,19 @@ try {
 }
 ?>
 
-<div class="grid grid-cols-1 xl:grid-cols-4 gap-6 mb-8">
+<div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
     <?php foreach ($dashboardStats as $stat): ?>
-        <article class="stat-card bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
-            <div class="flex items-start justify-between gap-4">
-                <div>
-                    <span class="text-sm text-gray-500 dark:text-gray-400"><?php echo htmlspecialchars($stat['label']); ?></span>
-                    <h2 class="text-3xl font-black mt-2 text-gray-900 dark:text-white"><?php echo number_format((int) $stat['value']); ?></h2>
+        <article class="stat-card bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+            <div class="flex items-center justify-between mb-4">
+                <div class="p-3 rounded-xl <?php echo htmlspecialchars($stat['tint']); ?>">
+                    <i class="fas <?php echo htmlspecialchars($stat['icon']); ?> text-2xl <?php echo htmlspecialchars($stat['iconColor']); ?>"></i>
                 </div>
-                <span class="w-14 h-14 rounded-2xl bg-gray-100 dark:bg-gray-700 inline-flex items-center justify-center <?php echo htmlspecialchars($stat['color']); ?>">
-                    <i class="fas <?php echo htmlspecialchars($stat['icon']); ?> text-xl"></i>
+                <span class="text-[11px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full <?php echo htmlspecialchars($stat['chip']); ?>">
+                    <?php echo htmlspecialchars($stat['chipLabel']); ?>
                 </span>
             </div>
+            <h3 class="text-3xl font-black text-gray-900 dark:text-white"><?php echo number_format((int) $stat['value']); ?></h3>
+            <p class="text-sm text-gray-500 dark:text-gray-400 mt-1"><?php echo htmlspecialchars($stat['label']); ?></p>
         </article>
     <?php endforeach; ?>
 </div>
@@ -101,15 +102,15 @@ try {
     <section class="xl:col-span-2 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 slide-in">
         <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
             <div>
-                <span class="text-xs font-semibold uppercase tracking-[0.2em] text-blue-500">Overview</span>
-                <h2 class="text-2xl font-bold text-gray-900 dark:text-white mt-2">Control the social homepage and community data</h2>
-                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">This dashboard now runs on the same admin framework as the rest of the panel, so navigation, permissions, and tools stay consistent.</p>
+                <span class="text-[11px] font-extrabold uppercase tracking-[0.18em] text-violet-500">Overview</span>
+                <h2 class="text-xl font-extrabold text-gray-900 dark:text-white mt-2">Homepage &amp; community controls</h2>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-2">Quick access to the slider, feed and community data powering the front page.</p>
             </div>
             <div class="flex flex-wrap gap-3">
-                <a href="slider-editor.php" class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors">
-                    <i class="fas fa-sliders-h mr-2"></i>Manage slider
+                <a href="slider-editor.php" class="px-4 py-2.5 rounded-xl bg-violet-600 hover:bg-violet-700 text-white text-sm font-bold transition-colors shadow-lg shadow-violet-500/25">
+                    <i class="fas fa-sliders mr-2"></i>Manage slider
                 </a>
-                <a href="manage-db.php" class="px-4 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 transition-colors">
+                <a href="manage-db.php" class="px-4 py-2.5 rounded-xl bg-white hover:bg-gray-50 dark:bg-gray-700 dark:hover:bg-gray-600 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 text-sm font-bold transition-colors">
                     <i class="fas fa-database mr-2"></i>Database tools
                 </a>
             </div>
@@ -117,32 +118,31 @@ try {
 
         <div class="grid md:grid-cols-3 gap-4">
             <article class="rounded-2xl border border-blue-100 dark:border-blue-900/40 bg-blue-50 dark:bg-blue-900/20 p-5">
-                <div class="flex items-center justify-between gap-3">
-                    <div>
-                        <div class="text-sm text-blue-600 dark:text-blue-300">Slider content</div>
-                        <div class="text-2xl font-bold text-blue-900 dark:text-white mt-2"><?php echo number_format($sliderStats['active']); ?></div>
-                        <p class="text-sm text-blue-800/80 dark:text-blue-100/70 mt-2"><?php echo number_format($sliderStats['total']); ?> total slides</p>
+                <div class="flex items-center justify-between gap-4">
+                    <div class="min-w-0">
+                        <div class="text-sm font-bold text-blue-600 dark:text-blue-300">Slider content</div>
+                        <div class="text-3xl font-black text-blue-900 dark:text-white mt-1"><?php echo number_format($sliderStats['active']); ?></div>
+                        <p class="text-xs text-blue-800/80 dark:text-blue-100/70 mt-1"><?php echo number_format($sliderStats['total']); ?> total slides</p>
                     </div>
-                    <div class="text-center">
+                    <div class="text-right shrink-0">
                         <form method="POST" class="inline-block">
                             <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                             <input type="hidden" name="toggle_slider" value="1">
                             <input type="hidden" name="slider_enabled" value="<?php echo $sliderEnabled === '1' ? '0' : '1'; ?>">
-                            <button type="submit" class="relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 <?php echo $sliderEnabled === '1' ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'; ?>">
+                            <button type="submit" class="relative inline-flex h-7 w-12 items-center rounded-full transition-colors duration-200 <?php echo $sliderEnabled === '1' ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'; ?>" title="Toggle slider">
                                 <span class="inline-block h-5 w-5 transform rounded-full bg-white shadow-sm transition-transform duration-200 <?php echo $sliderEnabled === '1' ? 'translate-x-6' : 'translate-x-1'; ?>"></span>
                             </button>
                         </form>
-                        <div class="text-xs font-semibold mt-1 <?php echo $sliderEnabled === '1' ? 'text-green-600' : 'text-red-500'; ?>">
+                        <div class="text-[11px] font-extrabold uppercase tracking-wider mt-2 <?php echo $sliderEnabled === '1' ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-500 dark:text-rose-400'; ?>">
                             <i class="fas fa-<?php echo $sliderEnabled === '1' ? 'check-circle' : 'times-circle'; ?>"></i>
                             <?php echo $sliderEnabled === '1' ? 'Visible' : 'Hidden'; ?>
                         </div>
-                        <p class="text-[11px] leading-snug text-amber-600 dark:text-amber-300/90 bg-amber-50 dark:bg-amber-900/25 border border-amber-200 dark:border-amber-800/50 rounded-lg px-2 py-1.5 mt-2 max-w-[15rem] mx-auto">
-                            <i class="fas fa-triangle-exclamation mr-1"></i>
-                            <strong>ON</strong> = the slider takes over the top of the home hero.
-                            <strong>OFF</strong> = the standard hero shows instead. Slides still stay saved either way.
-                        </p>
                     </div>
                 </div>
+                <p class="text-[11px] leading-snug text-amber-700 dark:text-amber-300/90 bg-amber-50 dark:bg-amber-900/25 border border-amber-200 dark:border-amber-800/50 rounded-lg px-3 py-2 mt-4">
+                    <i class="fas fa-triangle-exclamation mr-1"></i>
+                    <strong>ON</strong> = the slider takes over the top of the home hero. <strong>OFF</strong> = the standard hero shows instead. Slides stay saved either way.
+                </p>
             </article>
 
             <article class="rounded-2xl border border-emerald-100 dark:border-emerald-900/40 bg-emerald-50 dark:bg-emerald-900/20 p-5">

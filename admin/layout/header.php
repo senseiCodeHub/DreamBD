@@ -83,6 +83,7 @@ try {
     // Table might not exist
 }
 ?>
+
 <!DOCTYPE html>
 <html lang="en" class="">
 <head>
@@ -112,18 +113,12 @@ try {
         * { box-sizing: border-box; }
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; }
         .live-clock { font-variant-numeric: tabular-nums; }
-        .sidebar { transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 40; }
+        .sidebar { transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1); z-index: 40; }
         .sidebar.collapsed { width: 70px; }
         .sidebar.collapsed .sidebar-text { display: none; }
         .sidebar.collapsed .logo-text { display: none; }
         .sidebar.collapsed .dropdown-arrow { display: none; }
         .main-content { transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
-        .nav-item { transition: all 0.2s ease; }
-        .nav-item:hover { transform: translateX(4px); }
-        .nav-item.active { background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1)); border-right: 3px solid #3B82F6; }
-        .stat-card { transition: all 0.3s ease; }
-        .stat-card:hover { transform: translateY(-4px); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); }
-        .dropdown-menu { transition: all 0.2s ease; }
         .fade-in { animation: fadeIn 0.3s ease-in; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
         .slide-in { animation: slideIn 0.3s ease-out; }
@@ -135,12 +130,12 @@ try {
         .color-swatch.light-border { border-color: #d1d5db; }
         .icon-swatch.active { background: #eff6ff; border-color: #3b82f6; color: #2563eb; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59,130,246,0.15); }
         .dark .icon-swatch.active { background: rgba(59,130,246,0.15); border-color: #3b82f6; color: #93c5fd; }
-        
+
         /* Custom Range Slider */
         input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 16px; height: 16px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
         input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: white; border: 2px solid #3b82f6; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
         input[type="range"]:focus { outline: none; }
-        
+
         /* Custom Scrollbar */
         ::-webkit-scrollbar { width: 8px; height: 8px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -154,227 +149,212 @@ try {
         #topNavbar { z-index: 30; position: fixed; left: 256px; right: 0; top: 0; }
         .sidebar.collapsed ~ #topNavbar { left: 70px !important; }
     </style>
+    <link rel="stylesheet" href="../<?php echo dream_asset('assets/css/admin-ui.css'); ?>">
 </head>
-<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
-
-<script>
-    // Dark mode initialization is handled in footer.php after DOM is ready
-</script>
+<body class="bg-slate-50 dark:bg-gray-900 text-gray-800 dark:text-gray-200 min-h-screen">
 
     <!-- Sidebar -->
-    <div class="sidebar fixed left-0 top-0 h-full w-64 bg-white dark:bg-gray-800 shadow-2xl z-40 overflow-y-auto" id="sidebar">
+    <aside class="sidebar adm-sidebar fixed left-0 top-0 h-full w-64 overflow-y-auto" id="sidebar">
         <!-- Logo -->
-        <div class="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div class="p-5 border-b border-gray-200 dark:border-gray-700">
             <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
-                        <i class="fas fa-terminal text-white text-xl"></i>
-                    </div>
-                    <span class="logo-text text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">DREAMBD</span>
-                </div>
-                <button onclick="toggleSidebar()" class="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 transition-colors">
-                    <i class="fas fa-chevron-left" id="sidebarToggleIcon"></i>
+                <a href="index.php" class="flex items-center gap-3">
+                    <span class="adm-brand-tile w-10 h-10 rounded-xl flex items-center justify-center shrink-0">
+                        <i class="fas fa-terminal text-white text-lg"></i>
+                    </span>
+                    <span class="flex flex-col leading-tight">
+                        <span class="logo-text adm-brand-text text-[17px] font-extrabold tracking-tight">DREAMBD</span>
+                        <span class="logo-text text-[10px] font-bold uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">Admin Panel</span>
+                    </span>
+                </a>
+                <button onclick="toggleSidebar()" class="adm-icon-btn !w-8 !h-8 shrink-0" title="Collapse sidebar">
+                    <i class="fas fa-chevron-left text-xs" id="sidebarToggleIcon"></i>
                 </button>
             </div>
         </div>
 
         <!-- User Info -->
-        <div class="p-4 border-b border-gray-200 dark:border-gray-700">
-            <div class="flex items-center space-x-3">
-                <div class="w-10 h-10 rounded-full bg-gradient-to-br from-green-400 to-blue-500 flex items-center justify-center text-white font-bold">
-                    <?php echo strtoupper(substr($userDisplayName, 0, 1)); ?>
+        <div class="px-4 pt-4">
+            <div class="adm-user-card p-3">
+                <div class="flex items-center gap-3">
+                    <div class="relative shrink-0">
+                        <div class="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-white font-bold text-sm ring-2 ring-white dark:ring-gray-800">
+                            <?php echo strtoupper(substr($userDisplayName, 0, 1)); ?>
+                        </div>
+                        <span class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-white dark:border-gray-800 rounded-full"></span>
+                    </div>
+                    <div class="sidebar-text flex-1 min-w-0">
+                        <div class="text-sm font-bold text-gray-800 dark:text-white truncate"><?php echo htmlspecialchars($userDisplayName); ?></div>
+                        <div class="text-[11px] text-gray-500 dark:text-gray-400 truncate"><?php echo htmlspecialchars($userEmail); ?></div>
+                    </div>
                 </div>
-                <div class="sidebar-text flex-1 min-w-0">
-                    <div class="text-sm font-semibold text-gray-800 dark:text-white truncate"><?php echo htmlspecialchars($userDisplayName); ?></div>
-                    <div class="text-xs text-gray-500 dark:text-gray-400 truncate"><?php echo htmlspecialchars($userEmail); ?></div>
+                <div class="mt-2.5 sidebar-text">
+                    <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-extrabold uppercase tracking-wider <?php echo in_array($userRole, ['super_admin', 'admin'], true) ? 'bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300'; ?>">
+                        <i class="fas fa-shield-halved"></i>
+                        <?php echo htmlspecialchars(str_replace('_', ' ', $userRole)); ?>
+                    </span>
                 </div>
-            </div>
-            <div class="mt-3 sidebar-text">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $userRole === 'super_admin' ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400' : 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400'; ?>">
-                    <i class="fas fa-shield-alt mr-1"></i>
-                    <?php echo strtoupper($userRole); ?>
-                </span>
             </div>
         </div>
 
         <!-- Navigation -->
-        <nav class="mt-4 px-3 pb-20">
-            <div class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 sidebar-text px-3">Main</div>
-
-            <a href="index.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'dashboard' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-tachometer-alt w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Dashboard</span>
+        <nav class="mt-4 px-3 pb-24">
+            <?php
+            $admNavGroups = [
+                ['label' => 'Overview', 'items' => [
+                    ['index.php', 'dashboard', 'fa-gauge-high', 'Dashboard'],
+                    ['analytics.php', 'analytics', 'fa-chart-line', 'Analytics'],
+                    ['system-status.php', 'system', 'fa-server', 'System Status'],
+                ]],
+                ['label' => 'Commerce', 'items' => [
+                    ['product-manager.php', 'products', 'fa-box', 'Products'],
+                    ['product-orders.php', 'product-orders', 'fa-receipt', 'Product Orders'],
+                    ['topup-manager.php', 'topup', 'fa-gamepad', 'Game Top-Up'],
+                    ['payment-requests.php', 'payments', 'fa-credit-card', 'Payments'],
+                ]],
+                ['label' => 'Content', 'items' => [
+                    ['slider-editor.php', 'slider', 'fa-sliders', 'Slider Editor'],
+                    ['ad-manager.php', 'ads', 'fa-rectangle-ad', 'Ad Manager'],
+                    ['tournament-manager.php', 'tournaments', 'fa-trophy', 'Tournaments'],
+                    ['player-manager.php', 'players', 'fa-ranking-star', 'Top Players'],
+                ]],
+                ['label' => 'Community', 'items' => [
+                    ['user-manager.php', 'users', 'fa-users-gear', 'User Manager'],
+                    ['p2p-reports.php', 'p2p-reports', 'fa-flag', 'P2P Reports'],
+                    ['post-reports.php', 'post-reports', 'fa-shield-halved', 'Post Reports'],
+                ]],
+                ['label' => 'System', 'items' => [
+                    ['manage-db.php', 'database', 'fa-database', 'Database'],
+                    ['app-control.php', 'app-control', 'fa-mobile-screen', 'App Control'],
+                    ['settings.php', 'settings', 'fa-gear', 'Settings'],
+                    ['search.php', 'search', 'fa-magnifying-glass', 'Search'],
+                ]],
+            ];
+            foreach ($admNavGroups as $group): ?>
+            <div class="adm-nav-label sidebar-text mt-5 mb-2 px-3 first:mt-0"><?php echo $group['label']; ?></div>
+            <?php foreach ($group['items'] as $nav): $navActive = ($currentPage ?? '') === $nav[1]; ?>
+            <a href="<?php echo $nav[0]; ?>" class="nav-item flex items-center gap-3 px-2.5 py-2 mb-0.5 <?php echo $navActive ? 'active' : ''; ?>">
+                <span class="nav-ico"><i class="fas <?php echo $nav[2]; ?>"></i></span>
+                <span class="sidebar-text font-semibold"><?php echo $nav[3]; ?></span>
             </a>
+            <?php endforeach; ?>
+            <?php endforeach; ?>
 
-            <a href="manage-db.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'database' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-database w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Database</span>
+            <div class="border-t border-gray-200 dark:border-gray-700 my-4 mx-1"></div>
+            <div class="adm-nav-label sidebar-text mb-2 px-3">Account</div>
+
+            <a href="../index.php" class="nav-item flex items-center gap-3 px-2.5 py-2 mb-0.5">
+                <span class="nav-ico"><i class="fas fa-arrow-up-right-from-square"></i></span>
+                <span class="sidebar-text font-semibold">Back to Site</span>
             </a>
-
-            <a href="slider-editor.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'slider' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-sliders-h w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Slider Editor</span>
+            <a href="../index.php?page=profile" class="nav-item flex items-center gap-3 px-2.5 py-2 mb-0.5">
+                <span class="nav-ico"><i class="fas fa-user"></i></span>
+                <span class="sidebar-text font-semibold">My Profile</span>
             </a>
-
-            <a href="tournament-manager.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'tournaments' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-trophy w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Tournaments</span>
-            </a>
-
-            <a href="player-manager.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'players' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-ranking-star w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Top Players</span>
-            </a>
-
-            <a href="ad-manager.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'ads' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-ad w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Ad Manager</span>
-            </a>
-
-            <a href="product-manager.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'products' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-box-stacked w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Products</span>
-            </a>
-
-            <a href="product-orders.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'product-orders' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-receipt w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Product Orders</span>
-            </a>
-
-            <a href="topup-manager.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'topup' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-gamepad w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Game Top-Up</span>
-            </a>
-
-            <a href="user-manager.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'users' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-users-cog w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">User Manager</span>
-            </a>
-
-            <a href="system-status.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'system' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-server w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">System Status</span>
-            </a>
-
-            <a href="payment-requests.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'payments' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-credit-card w-5 text-center"></i>
-                <span class="sidebar-text font-medium">Payments</span>
-            </a>
-            <a href="p2p-reports.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'p2p-reports' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-flag w-5 text-center"></i>
-                <span class="sidebar-text font-medium">P2P Reports</span>
-            </a>
-
-            <a href="post-reports.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'post-reports' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-shield-alt w-5 text-center"></i>
-                <span class="sidebar-text font-medium">Post Reports</span>
-            </a>
-
-            <a href="app-control.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'app-control' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-mobile-alt w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">App Control</span>
-            </a>
-
-            <a href="analytics.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'analytics' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-chart-line w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Analytics</span>
-            </a>
-
-            <a href="search.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 <?php echo ($currentPage ?? '') === 'search' ? 'active text-blue-600 dark:text-blue-400' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'; ?>">
-                <i class="fas fa-search w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Search</span>
-            </a>
-
-            <div class="border-t border-gray-200 dark:border-gray-700 my-4"></div>
-            <div class="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider mb-2 sidebar-text px-3">Account</div>
-
-            <a href="../index.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <i class="fas fa-home w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Back to Site</span>
-            </a>
-
-            <a href="../index.php?page=profile" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg mb-1 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                <i class="fas fa-user w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">My Profile</span>
-            </a>
-
-            <a href="../logout.php" class="nav-item flex items-center space-x-3 px-3 py-3 rounded-lg text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
-                <i class="fas fa-sign-out-alt w-6 text-center text-lg"></i>
-                <span class="sidebar-text font-medium">Logout</span>
+            <a href="../logout.php" class="nav-item nav-danger flex items-center gap-3 px-2.5 py-2">
+                <span class="nav-ico"><i class="fas fa-right-from-bracket"></i></span>
+                <span class="sidebar-text font-semibold">Logout</span>
             </a>
         </nav>
-    </div>
+    </aside>
+
+    <!-- Mobile overlay -->
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
 
     <!-- Main Content Wrapper -->
     <div class="ml-64 main-content" id="mainContent">
 
         <!-- Top Navbar -->
-        <nav class="bg-white dark:bg-gray-800 shadow-sm border-b border-gray-200 dark:border-gray-700 fixed top-0 right-0 left-64 z-30 transition-all duration-300" id="topNavbar">
-            <div class="px-6 py-3">
-                <div class="flex items-center justify-between">
-                    <!-- Page Title -->
-                    <div class="flex items-center space-x-4">
-                        <h1 class="text-xl font-bold text-gray-800 dark:text-white">
+        <nav class="adm-topbar fixed top-0 right-0 left-64 z-30 transition-all duration-300" id="topNavbar">
+            <div class="px-6 h-16 flex items-center justify-between gap-4">
+                <!-- Left: mobile menu + title -->
+                <div class="flex items-center gap-3 min-w-0">
+                    <button onclick="toggleMobileSidebar()" class="adm-icon-btn lg:hidden shrink-0" id="mobileMenuBtn" title="Menu">
+                        <i class="fas fa-bars text-sm"></i>
+                    </button>
+                    <div class="min-w-0">
+                        <h1 class="adm-page-title text-[19px] font-extrabold text-gray-900 dark:text-white truncate leading-tight">
                             <?php echo $pageHeading ?? 'Dashboard'; ?>
                         </h1>
                         <?php if (isset($pageSubheading)): ?>
-                        <span class="text-sm text-gray-500 dark:text-gray-400">
-                            <?php echo $pageSubheading; ?>
-                        </span>
+                        <div class="text-xs text-gray-500 dark:text-gray-400 truncate"><?php echo $pageSubheading; ?></div>
                         <?php endif; ?>
                     </div>
+                </div>
 
-                    <!-- Right Side -->
-                    <div class="flex items-center space-x-4">
-                        <!-- Live Clock -->
-                        <div class="hidden md:flex items-center space-x-2 bg-gray-100 dark:bg-gray-700 px-4 py-2 rounded-lg">
-                            <i class="fas fa-clock text-blue-500"></i>
-                            <div class="text-right">
-                                <div class="text-sm font-mono font-bold text-gray-800 dark:text-white live-clock" id="liveClock">--:--:--</div>
-                                <div class="text-xs text-gray-500 dark:text-gray-400" id="liveDate">----/--/--</div>
-                            </div>
+                <!-- Right side -->
+                <div class="flex items-center gap-2.5 shrink-0">
+                    <!-- Live Clock -->
+                    <div class="hidden md:flex adm-chip !gap-2.5" title="Server time">
+                        <i class="fas fa-clock text-violet-500 text-sm"></i>
+                        <div class="text-right leading-none">
+                            <div class="text-[13px] font-bold font-mono text-gray-800 dark:text-white live-clock" id="liveClock">--:--:--</div>
+                            <div class="text-[10px] text-gray-400 dark:text-gray-500 mt-0.5" id="liveDate">----/--/--</div>
                         </div>
+                    </div>
 
-                        <!-- Dark Mode Toggle -->
-                        <button onclick="toggleDarkMode()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors" title="Toggle Dark Mode">
-                            <i class="fas fa-moon text-gray-600 dark:text-yellow-400" id="darkModeIcon"></i>
-                        </button>
+                    <!-- Dark Mode Toggle -->
+                    <button onclick="toggleDarkMode()" class="adm-icon-btn" title="Toggle Dark Mode">
+                        <i class="fas fa-moon text-sm" id="darkModeIcon"></i>
+                    </button>
 
-                        <!-- Notifications -->
-                        <button onclick="toggleNotifications()" class="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors relative">
-                            <i class="fas fa-bell text-gray-600 dark:text-gray-300"></i>
+                    <!-- Notifications -->
+                    <div class="relative">
+                        <button onclick="toggleNotifications(event)" class="adm-icon-btn relative" title="Notifications">
+                            <i class="fas fa-bell text-sm"></i>
                             <?php if ($notificationCount > 0): ?>
-                            <span class="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs rounded-full flex items-center justify-center font-bold">
+                            <span class="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white text-[10px] rounded-full flex items-center justify-center font-bold ring-2 ring-white dark:ring-gray-900">
                                 <?php echo min($notificationCount, 9); ?><?php echo $notificationCount > 9 ? '+' : ''; ?>
                             </span>
                             <?php endif; ?>
                         </button>
-
-                        <!-- User Dropdown -->
-                        <div class="relative">
-                            <button onclick="toggleUserMenu()" class="flex items-center space-x-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg px-3 py-2 transition-colors">
-                                <div class="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white text-sm font-bold">
-                                    <?php echo strtoupper(substr($userDisplayName, 0, 1)); ?>
+                        <div class="dropdown-menu absolute right-0 mt-2 w-72 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 p-4 hidden fade-in z-50" id="notifDropdown">
+                            <div class="text-xs font-extrabold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Notifications</div>
+                            <?php if ($notificationCount > 0): ?>
+                            <div class="flex items-start gap-3 p-3 rounded-xl bg-violet-50 dark:bg-violet-900/25 border border-violet-100 dark:border-violet-800/50">
+                                <span class="w-9 h-9 rounded-xl bg-violet-600 text-white flex items-center justify-center text-sm shrink-0"><i class="fas fa-bell"></i></span>
+                                <div class="min-w-0">
+                                    <div class="text-sm font-bold text-gray-800 dark:text-white"><?php echo (int) $notificationCount; ?> unread notification<?php echo $notificationCount > 1 ? 's' : ''; ?></div>
+                                    <a href="../index.php" class="text-xs font-semibold text-violet-600 dark:text-violet-300 hover:underline">Open site to view →</a>
                                 </div>
-                                <i class="fas fa-chevron-down text-gray-400 text-xs dropdown-arrow"></i>
-                            </button>
-
-                            <!-- Dropdown Menu -->
-                            <div class="dropdown-menu absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 hidden fade-in" id="userDropdown">
-                                <a href="../index.php?page=profile" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <i class="fas fa-user mr-2"></i>Profile
-                                </a>
-                                <a href="index.php" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <i class="fas fa-tachometer-alt mr-2"></i>Dashboard
-                                </a>
-                                <a href="settings.php" class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700">
-                                    <i class="fas fa-cog mr-2"></i>Settings
-                                </a>
-                                <div class="border-t border-gray-200 dark:border-gray-700 my-1"></div>
-                                <a href="../logout.php" class="block px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20">
-                                    <i class="fas fa-sign-out-alt mr-2"></i>Logout
-                                </a>
                             </div>
+                            <?php else: ?>
+                            <div class="text-sm text-gray-500 dark:text-gray-400 py-2 flex items-center gap-2">
+                                <i class="fas fa-check-circle text-emerald-500"></i> You're all caught up.
+                            </div>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+
+                    <!-- User Dropdown -->
+                    <div class="relative">
+                        <button onclick="toggleUserMenu(event)" class="adm-chip !h-[38px] !pl-1.5 !pr-3">
+                            <span class="w-7 h-7 rounded-full bg-gradient-to-br from-violet-500 to-blue-500 flex items-center justify-center text-white text-xs font-bold">
+                                <?php echo strtoupper(substr($userDisplayName, 0, 1)); ?>
+                            </span>
+                            <span class="hidden sm:block text-sm font-bold text-gray-700 dark:text-gray-200 max-w-[90px] truncate"><?php echo htmlspecialchars($userDisplayName); ?></span>
+                            <i class="fas fa-chevron-down text-[10px] text-gray-400 dropdown-arrow"></i>
+                        </button>
+
+                        <!-- Dropdown Menu -->
+                        <div class="dropdown-menu absolute right-0 mt-2 w-52 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl border border-gray-200 dark:border-gray-700 py-2 hidden fade-in z-50 overflow-hidden" id="userDropdown">
+                            <div class="px-4 py-2.5 border-b border-gray-100 dark:border-gray-700">
+                                <div class="text-sm font-bold text-gray-800 dark:text-white truncate"><?php echo htmlspecialchars($userDisplayName); ?></div>
+                                <div class="text-[11px] text-gray-400 truncate"><?php echo htmlspecialchars($userEmail); ?></div>
+                            </div>
+                            <a href="../index.php?page=profile" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                <i class="fas fa-user w-4 text-center text-gray-400"></i>Profile
+                            </a>
+                            <a href="index.php" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                <i class="fas fa-gauge-high w-4 text-center text-gray-400"></i>Dashboard
+                            </a>
+                            <a href="settings.php" class="flex items-center gap-3 px-4 py-2.5 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                                <i class="fas fa-gear w-4 text-center text-gray-400"></i>Settings
+                            </a>
+                            <div class="border-t border-gray-100 dark:border-gray-700 my-1"></div>
+                            <a href="../logout.php" class="flex items-center gap-3 px-4 py-2.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors">
+                                <i class="fas fa-right-from-bracket w-4 text-center"></i>Logout
+                            </a>
                         </div>
                     </div>
                 </div>
@@ -385,14 +365,14 @@ try {
         <div class="pt-8 px-6 py-8">
             <!-- Breadcrumb -->
             <?php if (isset($breadcrumbs)): ?>
-            <nav class="mb-6" aria-label="Breadcrumb">
-                <ol class="flex items-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                    <li><a href="index.php" class="hover:text-blue-600 dark:hover:text-blue-400">Home</a></li>
+            <nav class="adm-crumb mb-5 flex items-center gap-2 text-[13px]" aria-label="Breadcrumb">
+                <ol class="flex items-center gap-2">
+                    <li><a href="index.php">Home</a></li>
                     <?php foreach ($breadcrumbs as $i => $crumb): ?>
-                    <li><i class="fas fa-chevron-right text-xs"></i></li>
-                    <li class="<?php echo $i === count($breadcrumbs) - 1 ? 'text-gray-800 dark:text-white font-medium' : ''; ?>">
+                    <li class="text-gray-300 dark:text-gray-600"><i class="fas fa-chevron-right text-[9px]"></i></li>
+                    <li class="<?php echo $i === count($breadcrumbs) - 1 ? 'text-gray-700 dark:text-gray-200 font-bold' : ''; ?>">
                         <?php if (isset($crumb['url']) && $i < count($breadcrumbs) - 1): ?>
-                        <a href="<?php echo $crumb['url']; ?>" class="hover:text-blue-600 dark:hover:text-blue-400"><?php echo $crumb['label']; ?></a>
+                        <a href="<?php echo $crumb['url']; ?>"><?php echo $crumb['label']; ?></a>
                         <?php else: ?>
                         <?php echo $crumb['label']; ?>
                         <?php endif; ?>
@@ -407,13 +387,13 @@ try {
 
             <!-- Alerts / Messages -->
             <?php if (isset($messages)): foreach ($messages as $msg): ?>
-            <div class="mb-4 p-4 rounded-xl bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-400 fade-in">
-                <i class="fas fa-check-circle mr-2"></i><?php echo htmlspecialchars($msg); ?>
+            <div class="mb-4 p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-400 fade-in text-sm font-semibold flex items-center gap-2.5">
+                <i class="fas fa-check-circle"></i><?php echo htmlspecialchars($msg); ?>
             </div>
             <?php endforeach; endif; ?>
 
             <?php if (isset($errors)): foreach ($errors as $err): ?>
-            <div class="mb-4 p-4 rounded-xl bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-400 fade-in">
-                <i class="fas fa-exclamation-circle mr-2"></i><?php echo htmlspecialchars($err); ?>
+            <div class="mb-4 p-4 rounded-2xl bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-400 fade-in text-sm font-semibold flex items-center gap-2.5">
+                <i class="fas fa-exclamation-circle"></i><?php echo htmlspecialchars($err); ?>
             </div>
             <?php endforeach; endif; ?>

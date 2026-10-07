@@ -140,7 +140,7 @@ $activeUsers = $db->query("SELECT COUNT(*) FROM users")->fetchColumn();
 ?>
 
 <!-- Stats Cards -->
-<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 mb-8 slide-in">
+<div class="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-6 gap-6 mb-8 slide-in">
     <div class="stat-card bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
         <div class="flex items-center justify-between mb-4">
             <div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">

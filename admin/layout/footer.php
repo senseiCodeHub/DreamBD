@@ -1,15 +1,18 @@
     </div><!-- End Page Content -->
 
     <!-- Footer -->
-    <footer class="bg-white dark:bg-gray-800 border-t border-gray-200 dark:border-gray-700 mt-auto">
-        <div class="px-6 py-4">
-            <div class="flex items-center justify-between">
-                <div class="text-sm text-gray-500 dark:text-gray-400">
-                    DREAMBD Admin Panel v2.0
-                </div>
-                <div class="text-sm text-gray-500 dark:text-gray-400">
-                    Connected to: <?php echo DatabaseConfig::DB_NAME; ?>@<?php echo DatabaseConfig::DB_HOST; ?>
-                </div>
+    <footer class="adm-footer border-t border-gray-200 dark:border-gray-700 mt-auto">
+        <div class="px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
+            <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span>DREAMBD Admin Panel <span class="font-bold text-gray-700 dark:text-gray-300">v2.1</span></span>
+            </div>
+            <div class="font-mono">
+                <?php
+                $footerDb = class_exists('DatabaseConfig') ? DatabaseConfig::getName() : 'dream';
+                $footerHost = class_exists('DatabaseConfig') ? DatabaseConfig::getHost() : 'localhost';
+                echo htmlspecialchars((string) $footerDb . ' @ ' . (string) $footerHost);
+                ?>
             </div>
         </div>
     </footer>
@@ -71,6 +74,21 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
+    // ============ Mobile Sidebar ============
+    window.toggleMobileSidebar = function() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (!sidebar) return;
+        const open = sidebar.classList.toggle('mobile-open');
+        if (overlay) overlay.classList.toggle('show', open);
+    };
+    window.closeMobileSidebar = function() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebarOverlay');
+        if (sidebar) sidebar.classList.remove('mobile-open');
+        if (overlay) overlay.classList.remove('show');
+    };
+
     // ============ Dark Mode Toggle ============
     window.toggleDarkMode = function() {
         const html = document.documentElement;
@@ -112,20 +130,37 @@ document.addEventListener('DOMContentLoaded', function() {
     window.toggleUserMenu = function(e) {
         if (e) e.stopPropagation();
         const dropdown = document.getElementById('userDropdown');
+        const notif = document.getElementById('notifDropdown');
+        if (notif) notif.classList.add('hidden');
         if (dropdown) {
             dropdown.classList.toggle('hidden');
         }
     };
 
-    // Close dropdown when clicking outside
+    // ============ Notifications Dropdown ============
+    window.toggleNotifications = function(e) {
+        if (e) e.stopPropagation();
+        const notif = document.getElementById('notifDropdown');
+        const user = document.getElementById('userDropdown');
+        if (user) user.classList.add('hidden');
+        if (notif) notif.classList.toggle('hidden');
+    };
+
+    // Close dropdowns when clicking outside
     document.addEventListener('click', function(e) {
         const dropdown = document.getElementById('userDropdown');
-        if (!dropdown) return;
-
-        // If click is outside dropdown and not on the trigger button
-        if (!dropdown.contains(e.target) && !e.target.closest('[onclick*="toggleUserMenu"]')) {
+        if (dropdown && !dropdown.contains(e.target) && !e.target.closest('[onclick*="toggleUserMenu"]')) {
             dropdown.classList.add('hidden');
         }
+        const notif = document.getElementById('notifDropdown');
+        if (notif && !notif.contains(e.target) && !e.target.closest('[onclick*="toggleNotifications"]')) {
+            notif.classList.add('hidden');
+        }
+    });
+
+    // Close mobile sidebar on Escape
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') window.closeMobileSidebar();
     });
 
     // ============ Auto-hide Alerts ============

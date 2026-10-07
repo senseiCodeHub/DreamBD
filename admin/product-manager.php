@@ -31,7 +31,7 @@ foreach ($allProducts as $p) {
     <div class="stat-card bg-white dark:bg-gray-800 rounded-2xl shadow-sm p-6 border border-gray-200 dark:border-gray-700">
         <div class="flex items-center justify-between mb-4">
             <div class="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-xl">
-                <i class="fas fa-box-stacked text-2xl text-blue-600 dark:text-blue-400"></i>
+                <i class="fas fa-box text-2xl text-blue-600 dark:text-blue-400"></i>
             </div>
         </div>
         <h3 class="text-3xl font-bold text-gray-800 dark:text-white"><?php echo $statusCounts['total']; ?></h3>
