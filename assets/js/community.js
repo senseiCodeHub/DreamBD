@@ -145,6 +145,74 @@ function escapeHtml(text) {
                 return;
             }
 
+            // H. Friend request Confirm / Delete (right rail)
+            const frBtn = e.target.closest('[data-fr-action]');
+            if (frBtn) {
+                e.preventDefault();
+                const card = frBtn.closest('[data-fr-card]');
+                if (!card || frBtn.disabled) return;
+                const decision = frBtn.dataset.frAction === 'accept' ? 'accept' : 'reject';
+                frBtn.disabled = true;
+                frBtn.style.opacity = '.6';
+                const fd = new FormData();
+                fd.append('action', 'respond_friend_request');
+                fd.append('request_user_id', card.dataset.userId || '');
+                fd.append('decision', decision);
+                fd.append('csrf_token', getCsrfToken());
+                try {
+                    const r = await fetch('handlers/profile_handlers.php', { method: 'POST', body: fd });
+                    const d = await r.json();
+                    if (!d.success) throw new Error(d.message || 'Request failed');
+                    card.style.transition = 'opacity .25s ease, transform .25s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = 'translateX(20px)';
+                    setTimeout(() => { card.remove(); refreshFriendRequestBadge(); }, 250);
+                    cmToast(decision === 'accept' ? 'Friend request accepted' : 'Request removed');
+                } catch (err) {
+                    frBtn.disabled = false;
+                    frBtn.style.opacity = '';
+                    cmToast(err.message || 'Request failed', true);
+                }
+                return;
+            }
+
+            // I. Suggestion Add friend / Dismiss (right rail)
+            const sgBtn = e.target.closest('[data-sg-action]');
+            if (sgBtn) {
+                e.preventDefault();
+                const card = sgBtn.closest('[data-sg-card]');
+                if (!card || sgBtn.disabled) return;
+                const mode = sgBtn.dataset.sgAction;
+                sgBtn.disabled = true;
+                const fd = new FormData();
+                fd.append('action', mode === 'add' ? 'send_friend_request' : 'dismiss_suggestion');
+                fd.append('target_user_id', card.dataset.userId || '');
+                fd.append('csrf_token', getCsrfToken());
+                try {
+                    const r = await fetch('handlers/profile_handlers.php', { method: 'POST', body: fd });
+                    const d = await r.json();
+                    if (!d.success) throw new Error(d.message || 'Something went wrong');
+                    card.style.transition = 'opacity .25s ease, transform .25s ease';
+                    card.style.opacity = '0';
+                    card.style.transform = mode === 'add' ? 'scale(.94)' : 'translateX(20px)';
+                    setTimeout(() => card.remove(), 250);
+                    cmToast(mode === 'add' ? 'Friend request sent' : 'Suggestion removed');
+                } catch (err) {
+                    sgBtn.disabled = false;
+                    cmToast(err.message || 'Something went wrong', true);
+                }
+                return;
+            }
+
+            // J. Hero / empty-state CTAs
+            const heroCta = e.target.closest('#heroCreatePost, #cmFeedEmptyCreate');
+            if (heroCta) {
+                e.preventDefault();
+                const trigger = document.getElementById('composerTriggerBtn');
+                if (trigger) trigger.click();
+                return;
+            }
+
             // Close all post dropdowns on outside click
             if (!e.target.closest('.post-menu-container')) {
                 document.querySelectorAll('.post-dropdown.visible').forEach(d => d.classList.remove('visible'));
@@ -161,6 +229,7 @@ function escapeHtml(text) {
         initComposer();
         initEditModal();
         initReportModal();
+        initFeedToolbar();
 
         // Check URL for post/comment parameters (e.g. from notification redirect)
         const params = new URLSearchParams(window.location.search);
@@ -218,11 +287,36 @@ function escapeHtml(text) {
         const triggerBtn = document.getElementById('composerTriggerBtn');
         const triggerPhoto = document.getElementById('composerTriggerPhoto');
         const triggerFeeling = document.getElementById('composerTriggerFeeling');
+        const privacyBtn = document.getElementById('createPostPrivacyBtn');
+        const privacyLabelBtn = document.getElementById('createPostPrivacyLabel');
+        const privacyPicker = document.getElementById('createPostPrivacyPicker');
 
         if (!textarea || !submitBtn) return;
 
         let selectedFile = null;
         let selectedFeeling = null;
+        let selectedPrivacy = 'public';
+        const PRIVACY_META = {
+            public: { label: 'Public', icon: 'fa-globe-americas' },
+            friends: { label: 'Friends', icon: 'fa-user-group' },
+            private: { label: 'Only me', icon: 'fa-lock' }
+        };
+
+        function applyPrivacy(val) {
+            selectedPrivacy = PRIVACY_META[val] ? val : 'public';
+            const meta = PRIVACY_META[selectedPrivacy];
+            const chip = document.getElementById('composerPrivacyChipLabel');
+            if (chip) chip.textContent = meta.label;
+            if (privacyLabelBtn) {
+                privacyLabelBtn.innerHTML = `<i class="fas ${meta.icon}"></i> ${meta.label} <i class="fas fa-caret-down" style="font-size:10px;opacity:.7"></i>`;
+            }
+            if (privacyBtn) {
+                privacyBtn.innerHTML = `<i class="fas ${meta.icon}" style="color:#1877f2"></i>`;
+            }
+            privacyPicker?.querySelectorAll('.privacy-option').forEach(o => {
+                o.classList.toggle('is-active', o.dataset.privacy === selectedPrivacy);
+            });
+        }
 
         function resetModal() {
             textarea.value = '';
@@ -234,6 +328,8 @@ function escapeHtml(text) {
             photoImg.src = '';
             feelingBar.style.display = 'none';
             feelingPicker.classList.remove('visible');
+            privacyPicker?.classList.remove('visible');
+            applyPrivacy('public');
             submitBtn.disabled = true;
             submitBtn.innerHTML = 'Post';
         }
@@ -320,6 +416,28 @@ function escapeHtml(text) {
             feelingBar.style.display = 'none';
         });
 
+        // Privacy picker
+        function togglePrivacyPicker() {
+            feelingPicker?.classList.remove('visible');
+            privacyPicker?.classList.toggle('visible');
+        }
+        privacyBtn?.addEventListener('click', (e) => { e.stopPropagation(); togglePrivacyPicker(); });
+        privacyLabelBtn?.addEventListener('click', (e) => { e.stopPropagation(); togglePrivacyPicker(); });
+        privacyPicker?.querySelectorAll('.privacy-option').forEach(btn => {
+            btn.addEventListener('click', () => {
+                applyPrivacy(btn.dataset.privacy);
+                privacyPicker.classList.remove('visible');
+            });
+        });
+        document.addEventListener('click', (e) => {
+            if (privacyPicker && privacyPicker.classList.contains('visible') &&
+                !e.target.closest('#createPostPrivacyPicker') &&
+                !e.target.closest('#createPostPrivacyBtn') &&
+                !e.target.closest('#createPostPrivacyLabel')) {
+                privacyPicker.classList.remove('visible');
+            }
+        });
+
         // Submit
         submitBtn.addEventListener('click', async () => {
             const content = textarea.value.trim();
@@ -334,6 +452,7 @@ function escapeHtml(text) {
             const fd = new FormData();
             fd.append('action', 'create_post');
             fd.append('content', content);
+            fd.append('privacy', selectedPrivacy);
             fd.append('csrf_token', csrfToken);
             if (selectedFile) fd.append('post_image', selectedFile);
             if (selectedFeeling) fd.append('feeling', selectedFeeling);
@@ -343,8 +462,16 @@ function escapeHtml(text) {
                 const d = await r.json();
                 if (!d.success) throw new Error(d.message || 'Failed to post');
 
+                const postsEl = document.getElementById('cmFeedPosts');
                 const feed = document.querySelector('.community-feed');
-                if (feed) {
+                if (postsEl) {
+                    resetFeedFilter();
+                    const card = renderPostCard(d.post);
+                    postsEl.insertBefore(card, postsEl.firstChild);
+                    document.getElementById('cmFeedEmptyInitial')?.remove();
+                    refreshFeedCount();
+                    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                } else if (feed) {
                     const card = renderPostCard(d.post);
                     const composerCard = document.querySelector('.community-composer-card');
                     feed.insertBefore(card, composerCard?.nextSibling || feed.firstChild);
@@ -607,32 +734,188 @@ function escapeHtml(text) {
         });
     }
 
+    // ===== COMMUNITY HELPERS (toast / csrf / request badge) =====
+    function getCsrfToken() {
+        const el = document.querySelector('[data-community-page]') || document.querySelector('[data-profile-page]') || document.querySelector('[data-home-page]');
+        return (el && el.dataset.csrfToken) || document.body.dataset.csrfToken || '';
+    }
+
+    function cmToast(message, isError) {
+        let t = document.getElementById('cmToast');
+        if (!t) {
+            t = document.createElement('div');
+            t.id = 'cmToast';
+            t.className = 'cm-toast';
+            document.body.appendChild(t);
+        }
+        t.textContent = message;
+        t.classList.toggle('cm-toast--error', !!isError);
+        t.classList.add('cm-toast--show');
+        clearTimeout(t.__cmToastTimer);
+        t.__cmToastTimer = setTimeout(() => t.classList.remove('cm-toast--show'), 2600);
+    }
+
+    function refreshFriendRequestBadge() {
+        const panel = document.getElementById('cmFriendRequestsPanel');
+        if (!panel) return;
+        const cards = panel.querySelectorAll('[data-fr-card]');
+        const badge = panel.querySelector('.cm-heading-badge');
+        if (cards.length > 0) {
+            if (badge) badge.textContent = cards.length;
+        } else if (badge) {
+            badge.remove();
+        }
+        const list = panel.querySelector('.community-friend-list');
+        if (list && cards.length === 0 && !list.querySelector('.cm-panel-empty')) {
+            const p = document.createElement('p');
+            p.className = 'cm-panel-empty';
+            p.textContent = 'No new requests';
+            list.appendChild(p);
+        }
+    }
+
+    // ===== FEED TOOLBAR (filter / sort / search) =====
+    const feedState = { filter: 'all', q: '', sort: 'newest' };
+
+    function refreshFeedCount() {
+        const el = document.getElementById('cmFeedCount');
+        if (!el) return;
+        const total = document.querySelectorAll('#cmFeedPosts .community-post-card').length;
+        const visible = document.querySelectorAll('#cmFeedPosts .community-post-card:not(.is-filtered-out)').length;
+        const n = (total === visible) ? total : visible;
+        el.textContent = n + ' ' + (n === 1 ? 'post' : 'posts');
+    }
+
+    function applyFeedView() {
+        const postsEl = document.getElementById('cmFeedPosts');
+        if (!postsEl) return;
+        const posts = Array.from(postsEl.querySelectorAll('.community-post-card'));
+        const q = feedState.q;
+        let visible = 0;
+
+        posts.forEach(card => {
+            let ok = true;
+            const f = feedState.filter;
+            if (f === 'mine') {
+                ok = card.dataset.mine === '1';
+            } else if (f === 'friends') {
+                ok = card.dataset.friend === '1' || card.dataset.mine === '1';
+            } else if (f === 'trending') {
+                ok = ((Number(card.dataset.likes) || 0) + (Number(card.dataset.comments) || 0) + (Number(card.dataset.shares) || 0)) >= 1;
+            }
+            if (ok && q) ok = (card.dataset.search || '').toLowerCase().indexOf(q) !== -1;
+            card.classList.toggle('is-filtered-out', !ok);
+            if (ok) visible++;
+        });
+
+        const keyTs = c => Number(c.dataset.ts) || 0;
+        const keyLikes = c => Number(c.dataset.likes) || 0;
+        const keyComments = c => Number(c.dataset.comments) || 0;
+        let sorted;
+        if (feedState.sort === 'top') {
+            sorted = posts.slice().sort((a, b) => keyLikes(b) - keyLikes(a) || keyTs(b) - keyTs(a));
+        } else if (feedState.sort === 'discussed') {
+            sorted = posts.slice().sort((a, b) => keyComments(b) - keyComments(a) || keyTs(b) - keyTs(a));
+        } else {
+            sorted = posts.slice().sort((a, b) => keyTs(b) - keyTs(a));
+        }
+        sorted.forEach(c => postsEl.appendChild(c));
+
+        const emptyEl = document.getElementById('cmFeedEmpty');
+        if (emptyEl) emptyEl.style.display = (posts.length > 0 && visible === 0) ? '' : 'none';
+        refreshFeedCount();
+    }
+
+    function resetFeedFilter() {
+        feedState.filter = 'all';
+        feedState.q = '';
+        feedState.sort = 'newest';
+        const chips = document.getElementById('cmFeedChips');
+        chips?.querySelectorAll('.cm-chip').forEach(c => c.classList.toggle('is-active', c.dataset.filter === 'all'));
+        const search = document.getElementById('cmFeedSearch');
+        if (search) search.value = '';
+        const sort = document.getElementById('cmFeedSort');
+        if (sort) sort.value = 'newest';
+        applyFeedView();
+    }
+
+    function initFeedToolbar() {
+        const chips = document.getElementById('cmFeedChips');
+        if (!chips) return;
+        if (chips.dataset.feedInit === '1') return;
+        chips.dataset.feedInit = '1';
+
+        chips.addEventListener('click', (e) => {
+            const chip = e.target.closest('.cm-chip');
+            if (!chip) return;
+            chips.querySelectorAll('.cm-chip').forEach(c => c.classList.toggle('is-active', c === chip));
+            feedState.filter = chip.dataset.filter || 'all';
+            applyFeedView();
+        });
+
+        const search = document.getElementById('cmFeedSearch');
+        let searchTimer;
+        search?.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                feedState.q = search.value.trim().toLowerCase();
+                applyFeedView();
+            }, 160);
+        });
+
+        const sort = document.getElementById('cmFeedSort');
+        sort?.addEventListener('change', () => {
+            feedState.sort = sort.value || 'newest';
+            applyFeedView();
+        });
+
+        document.getElementById('cmFeedReset')?.addEventListener('click', resetFeedFilter);
+
+        applyFeedView();
+    }
+
     function renderPostCard(p) {
         const article = document.createElement('article');
         article.className = 'community-post-card';
         article.dataset.postId = p.id;
+        article.dataset.userId = parseInt(p.user_id) || '';
+        article.dataset.likes = parseInt(p.like_count) || 0;
+        article.dataset.comments = parseInt(p.comment_count) || 0;
+        article.dataset.shares = parseInt(p.share_count) || 0;
+        article.dataset.ts = Math.floor(Date.now() / 1000);
 
         const ownerName = p.full_name || p.username || 'User';
         const avatar = p.avatar || 'default.png';
         const time = 'Just now';
         const content = (p.content || '').replace(/\n/g, '<br>');
+        const authorId = parseInt(p.user_id) || 0;
+        const isOwner = authorId && window.__communityViewerId && authorId === parseInt(window.__communityViewerId);
+        if (isOwner) article.dataset.mine = '1';
+        article.dataset.search = ownerName + ' ' + (p.content || '');
+
+        const PRIVACY_BADGES = { friends: 'fa-user-group', private: 'fa-lock' };
+        const priv = p.privacy ? String(p.privacy).toLowerCase() : 'public';
+        const privBadge = PRIVACY_BADGES[priv]
+            ? `<span class="cm-privacy-badge" title="${priv === 'private' ? 'Only me' : 'Friends'}"><i class="fas ${PRIVACY_BADGES[priv]}"></i></span>`
+            : '';
+
+        const profileUrl = `index.php?page=profile&user=${authorId}`;
         const imageHtml = p.image_path
             ? `<div class="community-post-image"><img src="assets/posts/${p.image_path}" alt="" loading="lazy"></div>`
             : '';
         const feelingHtml = p.feeling
-            ? `<span style="font-size:12px;color:var(--comm-text-secondary);display:block;margin-top:2px">feeling <strong>${p.feeling}</strong></span>`
+            ? `<span class="community-post-feeling">feeling <strong>${escapeHtml(String(p.feeling))}</strong></span>`
             : '';
 
-        const isOwner = p.user_id && window.__communityViewerId && parseInt(p.user_id) === parseInt(window.__communityViewerId);
         const reactionIconsHtml = buildReactionIconsHtml(p.reaction_summary, Number(p.like_count || 0));
 
         article.innerHTML = `
             <div class="community-post-header">
                 <div class="community-post-author">
-                    <img src="assets/avatars/${avatar}" alt="" onerror="this.src='assets/avatars/default.png'">
+                    <a href="${profileUrl}" data-no-ajax class="community-author-avatar-link"><img src="assets/avatars/${avatar}" alt="" onerror="this.src='assets/avatars/default.png'"></a>
                     <div class="community-author-info">
-                        <strong>${escapeHtml(ownerName)}</strong>
-                        <span class="community-post-time">${time}</span>
+                        <strong><a href="${profileUrl}" data-no-ajax>${escapeHtml(ownerName)}</a></strong>
+                        <span class="community-post-time">${time}${privBadge}</span>
                         ${feelingHtml}
                     </div>
                 </div>

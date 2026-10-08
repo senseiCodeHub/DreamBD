@@ -214,6 +214,7 @@ try {
                 ]],
                 ['label' => 'Content', 'items' => [
                     ['slider-editor.php', 'slider', 'fa-sliders', 'Slider Editor'],
+                    ['community-hero.php', 'community-hero', 'fa-panorama', 'Hero Banner'],
                     ['ad-manager.php', 'ads', 'fa-rectangle-ad', 'Ad Manager'],
                     ['tournament-manager.php', 'tournaments', 'fa-trophy', 'Tournaments'],
                     ['player-manager.php', 'players', 'fa-ranking-star', 'Top Players'],

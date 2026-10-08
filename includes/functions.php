@@ -679,7 +679,27 @@ function getPostDetails(PDO $pdo, int $postId, int $viewerId): ?array {
 function getVisibleFeedPosts(PDO $pdo, ?int $viewerId = null, int $limit = 10, string $mode = 'home'): array {
     $limit = max(1, $limit);
     $viewerId = $viewerId ?: 0;
-    
+
+    // Community feed: include the viewer's own posts and order deterministically
+    // (newest first within friend/public groups) instead of random shuffle.
+    $includeOwn = ($mode === 'community');
+    $friendGate = "
+            ? > 0
+            AND EXISTS (
+                SELECT 1
+                FROM friendships f
+                WHERE f.status = 'accepted'
+                  AND (
+                        (f.requester_id = ? AND f.addressee_id = p.user_id)
+                     OR (f.addressee_id = ? AND f.requester_id = p.user_id)
+                    )
+                    AND p.privacy = 'friends'
+            )";
+    $visibility = $includeOwn
+        ? "( p.user_id = ? OR p.privacy = 'public' OR ( {$friendGate} ) )"
+        : "p.user_id != ? AND ( p.privacy = 'public' OR ( {$friendGate} ) )";
+    $tailOrder = $includeOwn ? "p.created_at DESC" : "RAND()";
+
     $sql = "
         SELECT
             p.*,
@@ -695,23 +715,7 @@ function getVisibleFeedPosts(PDO $pdo, ?int $viewerId = null, int $limit = 10, s
         LEFT JOIN post_likes pl ON pl.post_id = p.id
         LEFT JOIN post_comments pc ON pc.post_id = p.id
         LEFT JOIN post_shares ps ON ps.post_id = p.id
-        WHERE p.user_id != ?
-          AND (
-            p.privacy = 'public'
-            OR (
-              ? > 0
-              AND EXISTS (
-                  SELECT 1
-                  FROM friendships f
-                  WHERE f.status = 'accepted'
-                    AND (
-                          (f.requester_id = ? AND f.addressee_id = p.user_id)
-                       OR (f.addressee_id = ? AND f.requester_id = p.user_id)
-                      )
-                    AND p.privacy = 'friends'
-              )
-            )
-          )
+        WHERE {$visibility}
         GROUP BY p.id
         ORDER BY
           CASE
@@ -727,10 +731,10 @@ function getVisibleFeedPosts(PDO $pdo, ?int $viewerId = null, int $limit = 10, s
             WHEN p.privacy = 'public' THEN 1
             ELSE 2
           END,
-          RAND()
+          {$tailOrder}
         LIMIT ?
     ";
-    
+
     $stmt = $pdo->prepare($sql);
     $stmt->bindValue(1, $viewerId, PDO::PARAM_INT);
     $stmt->bindValue(2, $viewerId, PDO::PARAM_INT);
@@ -1274,6 +1278,28 @@ function getCommunityOverview(PDO $pdo, ?int $viewerId = null): array {
     }
 
     return $overview;
+}
+
+function getOnlineUsersList(PDO $pdo, ?int $excludeUserId = null, int $limit = 8): array {
+    $limit = max(1, min(50, $limit));
+    $excludeUserId = (int) ($excludeUserId ?? 0);
+    $stmt = $pdo->prepare("
+        SELECT u.id, u.username, u.full_name, u.avatar
+        FROM users u
+        WHERE u.id != ?
+          AND EXISTS (
+              SELECT 1 FROM user_sessions us
+              WHERE us.user_id = u.id
+                AND us.expires_at > NOW()
+                AND us.last_activity >= (UNIX_TIMESTAMP() - 300)
+          )
+        ORDER BY u.full_name ASC
+        LIMIT ?
+    ");
+    $stmt->bindValue(1, $excludeUserId, PDO::PARAM_INT);
+    $stmt->bindValue(2, $limit, PDO::PARAM_INT);
+    $stmt->execute();
+    return $stmt->fetchAll();
 }
 
 function getNavbarSearchResults(PDO $pdo, ?int $viewerId, string $query, int $userLimit = 4, int $postLimit = 3): array {
