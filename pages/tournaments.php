@@ -110,20 +110,31 @@ if ($viewerId) {
 .gp-hero-bg::after { content:''; position:absolute; bottom:-80px; left:-80px; width:240px; height:240px; border-radius:50%; background:radial-gradient(circle,rgba(5,150,105,.1),transparent 70%) }
 .gp-hero-content { position:relative; z-index:1; text-align:center; padding:10px 0 4px }
 .gp-hero-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 16px; border-radius:999px; background:rgba(139,92,246,.15); color:#a78bfa; font-size:.72rem; font-weight:700; letter-spacing:.3px; margin-bottom:14px; border:1px solid rgba(139,92,246,.2) }
-.gp-hero-content h1 { font-size:clamp(24px,4vw,38px); font-weight:900; color:#fff; letter-spacing:-.03em; line-height:1.15; margin:0 0 6px }
-.gp-hero-content p { font-size:.85rem; color:#94a3b8; margin:0 0 16px }
-.text-gradient { background:linear-gradient(135deg,#a78bfa,#c084fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text }
-.gp-hero-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; padding:20px 0 24px; position:relative; z-index:1 }
-.gp-stat-card { padding:22px 14px; border-radius:20px; background:rgba(255,255,255,.92); backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.5); box-shadow:0 4px 20px rgba(0,0,0,.04); transition:all .35s cubic-bezier(.34,1.56,.64,1); display:flex; flex-direction:column; align-items:center; justify-content:center; text-align:center }
-.dark .gp-stat-card { background:rgba(30,41,59,.88); border-color:rgba(71,85,105,.35) }
-.gp-stat-card:hover { transform:translateY(-5px); box-shadow:0 16px 40px rgba(0,0,0,.08) }
-.gp-stat-icon { font-size:26px; width:54px; height:54px; display:flex; align-items:center; justify-content:center; border-radius:16px; margin-bottom:10px }
+.gp-hero-content h1 { font-size:clamp(30px,5vw,54px); font-weight:900; color:#fff; letter-spacing:-.035em; line-height:1.06; margin:0 0 10px; text-wrap:balance }
+.gp-hero-content p { font-size:.9rem; color:#94a3b8; margin:0 0 18px }
+ .hero-em { color:#c084fc }
+.gp-hero-stage{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.55}
+.gp-hero-stage svg{width:100%;height:100%;display:block}
+.gp-hero-bracket path{stroke-dasharray:1;animation:brDraw .95s cubic-bezier(.22,1,.36,1) .1s both}
+.gp-hero-bracket circle{transform-box:fill-box;transform-origin:center;animation:brPop .5s cubic-bezier(.22,1,.36,1) .5s both}
+.gp-hero-bracket circle:last-child{animation-delay:.78s}
+@keyframes brDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
+@keyframes brPop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes gpStripSweep{to{transform:translateX(480%) skewX(-16deg)}}
+.gp-hero-stats::after{content:'';position:absolute;top:-20%;bottom:-20%;left:0;width:32%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.13) 45%,rgba(255,255,255,.13) 55%,transparent);transform:translateX(-170%) skewX(-16deg);animation:gpStripSweep .95s cubic-bezier(.22,1,.36,1) .55s 1 both;pointer-events:none}
+@keyframes stageDrift{from{transform:translateY(0)}to{transform:translateY(7%)}}
+@supports (animation-timeline:scroll()){.gp-hero-stage{animation:stageDrift linear both;animation-timeline:scroll(root);animation-range:0 600px}}
+@media (prefers-reduced-motion:reduce){.gp-hero-bracket path,.gp-hero-bracket circle,.gp-hero-stats::after{animation:none}.gp-hero-stage{animation:none}}
+.gp-hero-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:0; margin:20px 0 8px; position:relative; z-index:1; background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.11); border-radius:16px; backdrop-filter:blur(8px); overflow:hidden }
+.gp-stat-card { display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; column-gap:12px; align-items:center; justify-items:start; padding:16px; text-align:left; border-left:1px solid rgba(255,255,255,.09); min-width:0 }
+.gp-stat-card:first-child { border-left:0 }
+.gp-stat-icon { grid-row:1 / span 2; grid-column:1; font-size:15px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:10px; margin:0 }
 .gp-stat-card:nth-child(1) .gp-stat-icon { background:linear-gradient(135deg,#5b21b6,#7c3aed); color:#fff; box-shadow:0 6px 20px rgba(91,33,182,.35) }
 .gp-stat-card:nth-child(2) .gp-stat-icon { background:linear-gradient(135deg,#d97706,#f59e0b); color:#fff; box-shadow:0 6px 20px rgba(217,119,6,.35) }
 .gp-stat-card:nth-child(3) .gp-stat-icon { background:linear-gradient(135deg,#dc2626,#ef4444); color:#fff; box-shadow:0 6px 20px rgba(220,38,38,.35) }
 .gp-stat-card:nth-child(4) .gp-stat-icon { background:linear-gradient(135deg,#059669,#10b981); color:#fff; box-shadow:0 6px 20px rgba(5,150,105,.35) }
-.gp-stat-value { font-size:26px; font-weight:900; line-height:1.1; color:var(--gp-text); display:block }
-.gp-stat-label { font-size:12px; color:var(--gp-muted); font-weight:600; display:block; margin-top:3px }
+.gp-stat-value { grid-column:2; grid-row:1; font-size:clamp(1.1rem,1.5vw,1.45rem); font-weight:900; line-height:1.15; color:#fff; display:block; font-variant-numeric:tabular-nums }
+.gp-stat-label { grid-column:2; grid-row:2; font-size:.62rem; text-transform:uppercase; letter-spacing:.07em; color:rgba(255,255,255,.55); font-weight:700; display:block; margin-top:1px }
 
 /* ═══ PROFILE BAR ═══ */
 .gp-profile-bar { display:flex; align-items:center; gap:14px; padding:14px 20px; margin:0 0 18px; border-radius:20px; background:var(--gp-card); border:1px solid var(--gp-border); box-shadow:var(--gp-shadow) }
@@ -141,15 +152,15 @@ if ($viewerId) {
 .dark .gp-mobile-nav { box-shadow:0 -8px 32px rgba(0,0,0,.25) }
 .gp-mobile-nav-inner { display:flex; justify-content:space-around; align-items:flex-start; max-width:540px; margin:0 auto; padding-top:4px }
 .gp-mobile-nav-item { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:2px; padding:6px 0 8px; border:0; background:none; cursor:pointer; color:var(--gp-muted); font-size:.5rem; font-weight:600; transition:color .3s cubic-bezier(.4,0,.2,1); text-decoration:none; font-family:'Plus Jakarta Sans',sans-serif; letter-spacing:.2px; position:relative; -webkit-tap-highlight-color:transparent; user-select:none; flex:1; max-width:64px; min-height:52px }
-.gp-mobile-nav-item i { font-size:1.15rem; transition:transform .4s cubic-bezier(.34,1.56,.64,1),color .3s; margin-bottom:0 }
-.gp-mobile-nav-item .gp-nav-indicator { position:absolute; bottom:4px; left:50%; transform:translateX(-50%) scaleX(0); width:18px; height:3px; border-radius:4px; background:var(--gp-accent); transition:transform .35s cubic-bezier(.34,1.56,.64,1) }
+.gp-mobile-nav-item i { font-size:1.15rem; transition:transform .4s cubic-bezier(.22,1,.36,1),color .3s; margin-bottom:0 }
+.gp-mobile-nav-item .gp-nav-indicator { position:absolute; bottom:4px; left:50%; transform:translateX(-50%) scaleX(0); width:18px; height:3px; border-radius:4px; background:var(--gp-accent); transition:transform .35s cubic-bezier(.22,1,.36,1) }
 .gp-mobile-nav-item.active .gp-nav-indicator { transform:translateX(-50%) scaleX(1) }
 .gp-mobile-nav-item.active { color:var(--gp-accent); font-weight:700 }
 .gp-mobile-nav-item.active i { transform:translateY(-2px) scale(1.2); filter:drop-shadow(0 2px 6px rgba(139,92,246,.25)) }
 .gp-mobile-nav-item:active i { transform:scale(.85) }
 .gp-mobile-nav-item.nav-spacer { flex:0.4 }
 .gp-mobile-nav-plus { position:relative; margin-top:-18px; z-index:2; flex:1; max-width:64px; display:flex; align-items:center; justify-content:center }
-.gp-mobile-nav-plus .gp-mobile-nav-plus-btn { width:58px; height:58px; border-radius:50%; border:0; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; transition:transform .4s cubic-bezier(.34,1.56,.64,1),box-shadow .3s; background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; font-size:1.6rem; box-shadow:0 6px 24px rgba(139,92,246,.35) }
+.gp-mobile-nav-plus .gp-mobile-nav-plus-btn { width:58px; height:58px; border-radius:50%; border:0; display:flex; align-items:center; justify-content:center; cursor:pointer; position:relative; transition:transform .4s cubic-bezier(.22,1,.36,1),box-shadow .3s; background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; font-size:1.6rem; box-shadow:0 6px 24px rgba(139,92,246,.35) }
 .gp-mobile-nav-plus .gp-mobile-nav-plus-btn::after { content:''; position:absolute; inset:-3px; border-radius:50%; background:linear-gradient(135deg,transparent 40%,rgba(255,255,255,.15) 100%); pointer-events:none }
 .gp-mobile-nav-plus .gp-mobile-nav-plus-btn:active { transform:scale(.88); box-shadow:0 3px 12px rgba(139,92,246,.2) }
 @keyframes navPlusPulse { 0%,100% { box-shadow:0 6px 24px rgba(139,92,246,.35) } 50% { box-shadow:0 6px 36px rgba(139,92,246,.55),0 0 0 6px rgba(139,92,246,.1) } }
@@ -188,7 +199,7 @@ if ($viewerId) {
 
 /* ═══ CARD GRID ═══ */
 .gp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; padding:0 8px }
-.gp-card { background:var(--gp-card); border-radius:18px; padding:0; transition:all .3s ease; position:relative; overflow:hidden; border:1px solid var(--gp-border); box-shadow:0 1px 4px rgba(0,0,0,.02); display:flex; flex-direction:column }
+.gp-card { background:var(--gp-card); border-radius:18px; padding:0; transition:all .3s ease; position:relative; overflow:hidden; border:1px solid var(--gp-border); box-shadow:0 1px 4px rgba(0,0,0,.02); display:flex; flex-direction:column; height:100% }
 .gp-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(139,92,246,.06); border-color:rgba(139,92,246,.12) }
 .gp-card-accent { height:3px; flex-shrink:0 }
 .gp-card-head { display:flex; align-items:center; gap:10px; padding:14px 16px 0 }
@@ -204,16 +215,18 @@ if ($viewerId) {
 .dark .badge-ongoing { background:rgba(251,191,36,.15); color:#fbbf24 }
 .dark .badge-completed { background:rgba(139,92,246,.15); color:#a78bfa }
 .dark .badge-cancelled { background:rgba(220,38,38,.15); color:#fca5a5 }
-.gp-card-body { padding:8px 16px 4px; flex:1 }
+.gp-card-body { padding:8px 16px 4px; flex:1; display:flex; flex-direction:column; gap:4px }
 .gp-card-body h3 { font-size:.95rem; font-weight:800; color:var(--gp-text); margin:0 0 2px; letter-spacing:-.02em }
 .gp-card-tag { font-size:.68rem; color:var(--gp-muted); display:inline-flex; align-items:center; gap:4px; margin-right:6px }
 .gp-card-host { font-size:.68rem; color:var(--gp-muted); display:inline-flex; align-items:center; gap:4px }
 .gp-card-body p { font-size:.75rem; color:var(--gp-muted); margin:4px 0 0; line-height:1.4 }
+.gp-card-body p:empty, .gp-card-body p.no-desc { min-height:0 }
 .gp-card-meta { display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; padding:4px 16px 10px; font-size:.73rem; color:var(--gp-muted) }
 .gp-card-meta > div { display:flex; align-items:center; gap:5px }
 .gp-card-meta i { font-size:.6rem; width:13px; text-align:center; opacity:.7 }
 .gp-countdown { font-size:.65rem; font-weight:700; color:var(--gp-accent); margin-left:auto }
 .gp-card-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; border-top:1px solid var(--gp-border); margin:0 16px 0; padding:10px 0 14px }
+.gp-card > .gp-card-actions { margin-top:auto }
 
 /* ═══ BUTTONS (P2P style) ═══ */
 .gp-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:0; cursor:pointer; transition:all .2s; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; text-decoration:none; flex-shrink:0; font-size:.78rem; padding:10px 18px; border-radius:12px }
@@ -418,13 +431,13 @@ if ($viewerId) {
 /* ═══ SUCCESS OVERLAY — REDESIGNED ═══ */
 .gp-success-overlay { position:fixed; inset:0; z-index:999999; display:none; align-items:center; justify-content:center; background:rgba(0,0,0,.55); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px); animation:gpOverlayIn .25s ease }
 @keyframes gpOverlayIn { from { opacity:0 } to { opacity:1 } }
-.gp-success-box { position:relative; text-align:center; padding:44px 48px 36px; border-radius:28px; background:var(--gp-card); box-shadow:0 25px 80px rgba(0,0,0,.25); max-width:400px; width:calc(100% - 32px); margin:16px; animation:gpSuccessIn .45s cubic-bezier(.34,1.56,.64,1) }
+.gp-success-box { position:relative; text-align:center; padding:44px 48px 36px; border-radius:28px; background:var(--gp-card); box-shadow:0 25px 80px rgba(0,0,0,.25); max-width:400px; width:calc(100% - 32px); margin:16px; animation:gpSuccessIn .45s cubic-bezier(.22,1,.36,1) }
 @keyframes gpSuccessIn { 0% { opacity:0; transform:scale(.85) translateY(40px) } 100% { opacity:1; transform:scale(1) translateY(0) } }
 .gp-success-close { position:absolute; top:12px; right:12px; width:34px; height:34px; border-radius:50%; border:0; background:rgba(0,0,0,.05); cursor:pointer; display:flex; align-items:center; justify-content:center; color:var(--gp-muted); font-size:14px; transition:all .2s; z-index:2 }
 .gp-success-close:hover { background:rgba(239,68,68,.12); color:#dc2626; transform:rotate(90deg) }
 .dark .gp-success-close { background:rgba(255,255,255,.08); color:#9ca3af }
 .dark .gp-success-close:hover { background:rgba(239,68,68,.2); color:#fca5a5 }
-.gp-success-icon-wrap { width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:1.8rem; animation:gpIconPop .5s cubic-bezier(.34,1.56,.64,1) .15s both }
+.gp-success-icon-wrap { width:72px; height:72px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin:0 auto 16px; font-size:1.8rem; animation:gpIconPop .5s cubic-bezier(.22,1,.36,1) .15s both }
 @keyframes gpIconPop { 0% { opacity:0; transform:scale(0) rotate(-30deg) } 100% { opacity:1; transform:scale(1) rotate(0deg) } }
 .gp-success-icon-wrap.success { background:rgba(5,150,105,.12); color:var(--gp-green); box-shadow:0 0 0 4px rgba(5,150,105,.1) }
 .gp-success-icon-wrap.fail { background:rgba(220,38,38,.12); color:var(--gp-red); box-shadow:0 0 0 4px rgba(220,38,38,.1) }
@@ -677,16 +690,18 @@ if ($viewerId) {
 /* ═══ RESPONSIVE ═══ */
 @media (max-width:768px) {
   .gp-page { padding:0 6px 1.5rem }
-  .gp-hero { padding:16px 12px 0; border-radius:0 0 24px 24px }
-  .gp-hero-bg { min-height:300px; border-radius:0 0 24px 24px }
-  .gp-hero-content h1 { font-size:clamp(18px,5vw,28px) }
+.gp-hero { padding:16px 12px 0; border-radius:0 0 24px 24px }
+.gp-hero-bg { min-height:300px; border-radius:0 0 24px 24px }
+.gp-hero-stage{opacity:.4}
+  .gp-hero-content h1 { font-size:clamp(24px,5.5vw,32px) }
   .gp-hero-content p { font-size:.78rem }
-  .gp-hero-stats { grid-template-columns:1fr 1fr; gap:10px; padding:14px 4px 18px }
-  .gp-stat-card { padding:16px 10px; border-radius:18px }
-  .gp-stat-card .gp-stat-icon { font-size:20px; width:46px; height:46px; border-radius:14px; margin-bottom:8px }
-  .gp-stat-value { font-size:20px }
-  .gp-stat-label { font-size:11px }
-  .gp-stat-card:hover { transform:none }
+.gp-hero-stats { grid-template-columns:1fr 1fr; margin:14px 0 6px }
+.gp-stat-card { padding:13px 12px; border-left:1px solid rgba(255,255,255,.09) }
+.gp-stat-card:nth-child(2n+1) { border-left:0 }
+.gp-stat-card:nth-child(n+3) { border-top:1px solid rgba(255,255,255,.09) }
+.gp-stat-card .gp-stat-icon { font-size:14px; width:30px; height:30px; border-radius:9px }
+.gp-stat-value { font-size:1.15rem }
+.gp-stat-label { font-size:.6rem }
   .gp-profile-bar { flex-wrap:wrap; gap:6px; padding:10px 12px; border-radius:16px }
   .gp-profile-avatar-wrap { width:34px; height:34px }
   .gp-profile-meta { flex:1; min-width:0 }
@@ -766,11 +781,11 @@ if ($viewerId) {
   .gp-card-body h3 { font-size:.9rem }
 }
 @media (max-width:480px) {
-  .gp-hero-stats { gap:6px; padding:10px 2px 14px }
-  .gp-stat-card { padding:10px 6px; border-radius:14px }
-  .gp-stat-card .gp-stat-icon { font-size:16px; width:34px; height:34px; border-radius:10px; margin-bottom:4px }
-  .gp-stat-value { font-size:15px }
-  .gp-stat-label { font-size:9px }
+.gp-hero-stats { margin:10px 0 4px }
+.gp-stat-card { padding:10px 8px; column-gap:8px }
+.gp-stat-card .gp-stat-icon { font-size:12px; width:26px; height:26px; border-radius:8px }
+.gp-stat-value { font-size:1rem }
+.gp-stat-label { font-size:.55rem }
   .gp-card { padding:0 }
   .gp-card-accent { height:2px }
   .gp-card-head { gap:6px; padding:10px 12px 0 }
@@ -801,7 +816,7 @@ if ($viewerId) {
   .gp-modal-head { padding:12px 14px }
   .gp-hero { padding:10px 8px 0; border-radius:0 0 18px 18px }
   .gp-hero-bg { min-height:240px; border-radius:0 0 18px 18px }
-  .gp-hero-content h1 { font-size:clamp(20px,5vw,30px) }
+  .gp-hero-content h1 { font-size:clamp(24px,6vw,34px) }
   .gp-hero-content p { font-size:.78rem }
   .gp-my-grid { grid-template-columns:1fr }
 
@@ -927,11 +942,30 @@ if ($viewerId) {
 <div class="gp-page" id="tournamentsPage" data-csrf="<?php echo htmlspecialchars($csrfToken); ?>" data-user-id="<?php echo (int)($viewerId ?? 0); ?>" data-role="<?php echo htmlspecialchars($userRole); ?>" data-balance="<?php echo $userBalance; ?>" data-has-profile="<?php echo !empty($_SESSION['nickname']) ? '1' : '0'; ?>">
 
     <!-- ═══ HERO ═══ -->
-    <section class="gp-hero">
-        <div class="gp-hero-bg"></div>
+<section class="gp-hero">
+<div class="gp-hero-bg"></div>
+<div class="gp-hero-stage" aria-hidden="true">
+<svg class="gp-hero-bracket" viewBox="0 0 960 420" fill="none" preserveAspectRatio="xMidYMid slice">
+<path pathLength="1" d="M48 74 H138 V119 H228" stroke="rgba(167,139,250,.5)" stroke-width="1.6"/>
+<path pathLength="1" d="M48 164 H138 V119" stroke="rgba(167,139,250,.5)" stroke-width="1.6"/>
+<path pathLength="1" d="M48 254 H138 V299 H228" stroke="rgba(167,139,250,.5)" stroke-width="1.6"/>
+<path pathLength="1" d="M48 344 H138 V299" stroke="rgba(167,139,250,.5)" stroke-width="1.6"/>
+<path pathLength="1" d="M228 119 H318 V238 H408" stroke="rgba(167,139,250,.55)" stroke-width="1.6"/>
+<path pathLength="1" d="M228 299 H318 V238" stroke="rgba(167,139,250,.55)" stroke-width="1.6"/>
+<path pathLength="1" d="M408 238 H748" stroke="rgba(192,132,252,.6)" stroke-width="1.8"/>
+<circle cx="48" cy="74" r="4" fill="rgba(96,165,250,.7)"/>
+<circle cx="48" cy="164" r="4" fill="rgba(96,165,250,.7)"/>
+<circle cx="48" cy="254" r="4" fill="rgba(96,165,250,.7)"/>
+<circle cx="48" cy="344" r="4" fill="rgba(96,165,250,.7)"/>
+<circle cx="228" cy="119" r="4" fill="rgba(167,139,250,.75)"/>
+<circle cx="228" cy="299" r="4" fill="rgba(167,139,250,.75)"/>
+<circle cx="408" cy="238" r="4.5" fill="rgba(192,132,252,.85)"/>
+<circle cx="748" cy="238" r="5.5" fill="#c084fc"/>
+</svg>
+</div>
         <div class="gp-hero-content">
             <span class="gp-hero-badge"><i class="fas fa-trophy"></i> DreamBD Arena</span>
-            <h1>Compete. Conquer. <span class="text-gradient">Rise Up.</span></h1>
+            <h1>Compete. Conquer. <span class="hero-em">Rise Up.</span></h1>
             <p>Join tournaments, build your team, and battle for glory and prizes.</p>
             <!-- <div class="gp-hero-actions">
                 <?php if ($viewerId): ?>
@@ -1119,7 +1153,7 @@ if ($viewerId) {
                         <?php endif; ?>
                     </div>
                     <div class="gp-card-body">
-                        <h3><?php echo $title; ?></h3>
+                        <h3><a href="index.php?page=tournament&id=<?php echo $tid; ?>" data-no-ajax style="color:inherit;text-decoration:none"><?php echo $title; ?></a></h3>
                         <?php if ($cat || $agentName): ?>
                         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 0">
                             <?php if ($cat): ?><span class="gp-card-tag"><i class="fas fa-tag"></i> <?php echo $cat; ?></span><?php endif; ?>
@@ -1158,7 +1192,6 @@ if ($viewerId) {
                                 <span style="flex:1;height:4px;border-radius:2px;background:var(--gp-border);overflow:hidden">
                                     <span style="display:block;height:100%;width:<?php echo min(100, round($regd/$maxTeams*100)); ?>%;border-radius:2px;background:linear-gradient(90deg,#7c3aed,#a78bfa);transition:width .3s"></span>
                                 </span>
-                                <span style="font-weight:700"><?php echo $regd; ?>/<?php echo $maxTeams; ?></span>
                             </div>
                         </div>
                         <?php endif; ?>
@@ -1172,14 +1205,18 @@ if ($viewerId) {
                         <?php elseif ($isRegistered): ?>
                             <button class="gp-btn gp-btn-sm gp-btn-success" disabled><i class="fas fa-check-circle"></i> Registered</button>
                             <button class="gp-btn gp-btn-sm gp-btn-ghost gp-unregister" data-id="<?php echo $tid; ?>" data-fee="<?php echo $entryFee; ?>"><i class="fas fa-xmark"></i></button>
+                        <?php elseif ($isAgentOwner): ?>
                         <?php elseif ($canRegister && !$isFull): ?>
                             <button class="gp-btn gp-btn-sm gp-btn-primary gp-join-btn" data-id="<?php echo $tid; ?>" data-title="<?php echo htmlspecialchars($title, ENT_QUOTES); ?>" data-fee="<?php echo $entryFee; ?>"><i class="fas fa-right-to-bracket"></i> <?php echo $entryFee > 0 ? 'Join (৳'.number_format($entryFee,0).')' : 'Join free'; ?></button>
                         <?php elseif ($isFull): ?>
                             <span class="gp-btn gp-btn-sm gp-btn-disabled"><i class="fas fa-lock"></i> Full</span>
+                        <?php elseif (!$viewerId && in_array($status, ['upcoming', 'live'])): ?>
+                            <a class="gp-btn gp-btn-sm gp-btn-outline" href="index.php?page=login"><i class="fas fa-right-to-bracket"></i> <?php echo $entryFee > 0 ? 'Login to join (৳'.number_format($entryFee,0).')' : 'Login to join'; ?></a>
                         <?php else: ?>
                             <span class="gp-btn gp-btn-sm gp-btn-disabled">Closed</span>
                         <?php endif; ?>
                         <button class="gp-btn gp-btn-sm gp-btn-ghost gp-view-btn" data-id="<?php echo $tid; ?>"><i class="fas fa-eye"></i> View</button>
+                        <a class="gp-btn gp-btn-sm gp-btn-ghost" href="index.php?page=tournament&id=<?php echo $tid; ?>" data-no-ajax><i class="fas fa-arrow-up-right-from-square"></i> Details</a>
                         <?php if ($canOpenRoom): ?>
                             <a class="gp-btn gp-btn-sm gp-btn-outline" href="index.php?page=tournament-room&id=<?php echo $tid; ?>" data-no-ajax><i class="fas fa-door-open"></i> Room</a>
                         <?php endif; ?>
@@ -2118,7 +2155,7 @@ var filter = document.getElementById('lbFilter');
                         <div class="gp-input-group"><span class="gp-input-prefix">৳</span>
                             <input type="text" name="prize_money" class="gp-input" placeholder="e.g. 500" required>
                         </div>
-                        <span class="gp-form-hint">Will be deducted from your balance</span>
+                        <span class="gp-form-hint">Held in escrow until results</span>
                     </div>
                     <div class="gp-form-group">
                         <label>Entry fee (৳)</label>
@@ -2131,6 +2168,37 @@ var filter = document.getElementById('lbFilter');
                         <label>Max teams</label>
                         <input type="number" name="max_teams" class="gp-input" min="0" placeholder="e.g. 16" value="16">
                     </div>
+                </div>
+                <div class="gp-form-grid three">
+                    <div class="gp-form-group">
+                        <label>Bracket format</label>
+                        <select name="bracket_type" class="gp-input">
+                            <option value="single_elimination">Single Elimination</option>
+                            <option value="double_elimination">Double Elimination</option>
+                            <option value="round_robin">Round Robin</option>
+                        </select>
+                    </div>
+                    <div class="gp-form-group">
+                        <label>Best of</label>
+                        <select name="best_of" class="gp-input">
+                            <option value="1">BO1</option>
+                            <option value="3">BO3</option>
+                            <option value="5">BO5</option>
+                        </select>
+                    </div>
+                    <div class="gp-form-group">
+                        <label>Check-in window</label>
+                        <select name="checkin_minutes" class="gp-input">
+                            <option value="15">15 min before</option>
+                            <option value="30" selected>30 min before</option>
+                            <option value="60">60 min before</option>
+                        </select>
+                        <span class="gp-form-hint">No-shows are auto-refunded</span>
+                    </div>
+                </div>
+                <div class="gp-form-group">
+                    <label>Rules</label>
+                    <textarea name="rules" class="gp-input" rows="2" placeholder="Match rules, loadout restrictions, conduct..."></textarea>
                 </div>
                 <div class="gp-form-grid two">
                     <div class="gp-form-group">
@@ -2553,7 +2621,7 @@ var filter = document.getElementById('lbFilter');
 
     safe('Cards', function() {
         document.querySelectorAll('.gp-card').forEach(function(el, i) {
-            el.style.opacity='0'; el.style.transform='translateY(20px)'; el.style.transition='opacity .5s,transform .5s cubic-bezier(.34,1.56,.64,1)';
+            el.style.opacity='0'; el.style.transform='translateY(20px)'; el.style.transition='opacity .5s,transform .5s cubic-bezier(.22,1,.36,1)';
             setTimeout(function(){ el.style.opacity='1'; el.style.transform='translateY(0)'; },80+i*60);
         });
     });

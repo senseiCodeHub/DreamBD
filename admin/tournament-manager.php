@@ -29,22 +29,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     trim($_POST['accent_color'] ?? '#7c3aed'),
                     trim($_POST['starts_at'] ?: null),
                     trim($_POST['status'] ?? 'upcoming'),
+                    in_array($_POST['bracket_type'] ?? '', ['single_elimination', 'double_elimination', 'round_robin'], true) ? $_POST['bracket_type'] : 'single_elimination',
+                    (int) ($_POST['best_of'] ?? 1) ?: 1,
+                    (int) ($_POST['checkin_minutes'] ?? 30) ?: 30,
+                    trim($_POST['rules'] ?? ''),
                 ];
                 if ($action === 'add') {
-                    $stmt = $db->prepare("INSERT INTO tournaments (title, description, prize_money, category, max_teams, game_icon, accent_color, starts_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
+                    $stmt = $db->prepare("INSERT INTO tournaments (title, description, prize_money, category, max_teams, game_icon, accent_color, starts_at, status, bracket_type, best_of, checkin_minutes, rules) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
                     $stmt->execute($data);
                     $messages[] = 'Tournament created!';
                 } else {
                     $data[] = $id;
-                    $stmt = $db->prepare("UPDATE tournaments SET title=?, description=?, prize_money=?, category=?, max_teams=?, game_icon=?, accent_color=?, starts_at=?, status=? WHERE id=?");
+                    $stmt = $db->prepare("UPDATE tournaments SET title=?, description=?, prize_money=?, category=?, max_teams=?, game_icon=?, accent_color=?, starts_at=?, status=?, bracket_type=?, best_of=?, checkin_minutes=?, rules=? WHERE id=?");
                     $stmt->execute($data);
                     $messages[] = 'Tournament updated!';
                 }
             }
             if ($action === 'delete') {
-                $stmt = $db->prepare("DELETE FROM tournaments WHERE id=?");
-                $stmt->execute([(int)($_POST['id'] ?? 0)]);
-                $messages[] = 'Tournament deleted';
+                $tid = (int)($_POST['id'] ?? 0);
+                if ($tid > 0) {
+                    $db->beginTransaction();
+                    // Refund escrowed fees (participants) back to users
+                    $st = $db->prepare("SELECT tp.user_id, t.entry_fee FROM tournament_participants tp JOIN tournaments t ON t.id = tp.tournament_id WHERE tp.tournament_id = ? AND tp.status = 'confirmed'");
+                    $st->execute([$tid]);
+                    $feeRow = $st->fetch();
+                    $fee = $feeRow ? (float)$feeRow['entry_fee'] : 0.0;
+                    if ($fee > 0) {
+                        $st2 = $db->prepare("SELECT user_id FROM tournament_participants WHERE tournament_id = ? AND status = 'confirmed'");
+                        $st2->execute([$tid]);
+                        foreach ($st2->fetchAll(PDO::FETCH_ASSOC) as $p) {
+                            $db->prepare("UPDATE users SET balance = balance + ? WHERE id = ?")->execute([$fee, (int)$p['user_id']]);
+                        }
+                        // Return escrowed fees to agent (or zero if not collected)
+                        $db->prepare("UPDATE tournaments SET fee_escrow = GREATEST(fee_escrow - ?, 0) WHERE id = ?")->execute([$fee * $st2->rowCount(), $tid]);
+                    }
+                    // Return prize escrow to agent balance
+                    $pr = $db->prepare("SELECT agent_id, prize_escrow FROM tournaments WHERE id = ? FOR UPDATE");
+                    $pr->execute([$tid]);
+                    $prow = $pr->fetch();
+                    if ($prow && (float)$prow['prize_escrow'] > 0 && (int)$prow['agent_id'] > 0) {
+                        $db->prepare("UPDATE users SET balance = balance + ? WHERE id = ?")->execute([(float)$prow['prize_escrow'], (int)$prow['agent_id']]);
+                    }
+                    // Remove children first (no orphans)
+                    foreach (['tournament_matches', 'tournament_participants', 'tournament_results', 'tournament_chat_messages', 'tournament_room_messages', 'tournament_player_leaderboard'] as $child) {
+                        try { $db->prepare("DELETE FROM {$child} WHERE tournament_id = ?")->execute([$tid]); } catch (PDOException $e) { /* table may not exist */ }
+                    }
+                    $db->prepare("DELETE FROM notifications WHERE entity_id = ? AND type LIKE 'tournament%'")->execute([$tid]);
+                    $db->prepare("DELETE FROM tournaments WHERE id = ?")->execute([$tid]);
+                    $db->commit();
+                    $messages[] = 'Tournament deleted, all money returned.';
+                }
             }
             if ($action === 'set_live') {
                 $stmt = $db->prepare("UPDATE tournaments SET status='live', starts_at=COALESCE(starts_at, NOW()) WHERE id=? AND status='upcoming'");
@@ -66,7 +100,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 $items = [];
 try {
-    $stmt = $db->query("SELECT * FROM tournaments ORDER BY COALESCE(starts_at, created_at) DESC");
+    $stmt = $db->query("SELECT t.*,
+        (SELECT COUNT(*) FROM tournament_participants tp WHERE tp.tournament_id = t.id AND tp.status = 'confirmed') AS reg_count,
+        (SELECT COUNT(*) FROM tournament_matches tm WHERE tm.tournament_id = t.id) AS match_count,
+        a.username AS agent_name
+        FROM tournaments t LEFT JOIN users a ON a.id = t.agent_id
+        ORDER BY COALESCE(t.starts_at, t.created_at) DESC");
     $items = $stmt->fetchAll();
 } catch (PDOException $e) { $errors[] = 'Table not found.'; }
 ?>
@@ -163,6 +202,40 @@ try {
                     </div>
                 </div>
 
+                <!-- Bracket format + Best of + Check-in -->
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Bracket Format</label>
+                        <select name="bracket_type" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
+                            <option value="single_elimination" <?php echo ($editItem['bracket_type'] ?? '') === 'single_elimination' ? 'selected' : ''; ?>>Single Elimination</option>
+                            <option value="double_elimination" <?php echo ($editItem['bracket_type'] ?? '') === 'double_elimination' ? 'selected' : ''; ?>>Double Elimination</option>
+                            <option value="round_robin" <?php echo ($editItem['bracket_type'] ?? '') === 'round_robin' ? 'selected' : ''; ?>>Round Robin</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Best Of</label>
+                        <select name="best_of" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
+                            <?php foreach ([1 => 'BO1', 3 => 'BO3', 5 => 'BO5'] as $v => $lbl): ?>
+                            <option value="<?php echo $v; ?>" <?php echo (int)($editItem['best_of'] ?? 1) === $v ? 'selected' : ''; ?>><?php echo $lbl; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Check-in Window</label>
+                        <select name="checkin_minutes" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white">
+                            <?php foreach ([15 => '15 min before', 30 => '30 min before', 60 => '60 min before'] as $v => $lbl): ?>
+                            <option value="<?php echo $v; ?>" <?php echo (int)($editItem['checkin_minutes'] ?? 30) === $v ? 'selected' : ''; ?>><?php echo $lbl; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Rules -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Rules</label>
+                    <textarea name="rules" rows="2" class="w-full px-4 py-2 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white" placeholder="Match rules, loadout restrictions, conduct..."><?php echo htmlspecialchars($editItem['rules'] ?? ''); ?></textarea>
+                </div>
+
                 <!-- Accent Color with Palette -->
                 <div class="bg-gray-50 dark:bg-gray-700/40 rounded-xl p-4 border border-gray-200 dark:border-gray-600">
                     <div class="flex items-center gap-2 mb-3">
@@ -235,6 +308,21 @@ try {
                                     <?php if ($item['starts_at']): ?>
                                     <span><i class="fas fa-calendar text-xs"></i> <?php echo date('M j, Y', strtotime($item['starts_at'])); ?></span>
                                     <?php endif; ?>
+                                    <span><i class="fas fa-diagram-project text-xs"></i> <?php echo htmlspecialchars(str_replace(['_elimination', 'round_'], '', $item['bracket_type'] ?? 'single')); ?></span>
+                                    <span><i class="fas fa-user-check text-xs"></i> <?php echo (int)($item['reg_count'] ?? 0); ?> reg</span>
+                                    <?php if ((int)($item['match_count'] ?? 0) > 0): ?>
+                                    <span><i class="fas fa-server text-xs"></i> <?php echo (int)$item['match_count']; ?> matches</span>
+                                    <?php endif; ?>
+                                    <?php if (!empty($item['agent_name'])): ?>
+                                    <span><i class="fas fa-user-tie text-xs"></i> <?php echo htmlspecialchars($item['agent_name']); ?></span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="flex flex-wrap gap-x-3 gap-y-1 mt-1 text-xs font-mono">
+                                    <span class="text-amber-600 dark:text-amber-400" title="Entry fees held in escrow"><i class="fas fa-lock"></i> fee ৳<?php echo number_format((float)($item['fee_escrow'] ?? 0), 2); ?></span>
+                                    <span class="text-emerald-600 dark:text-emerald-400" title="Prize money held in escrow"><i class="fas fa-vault"></i> prize ৳<?php echo number_format((float)($item['prize_escrow'] ?? 0), 2); ?></span>
+                                    <?php if ((float)($item['escrow_released'] ?? 0)): ?>
+                                    <span class="text-gray-400"><i class="fas fa-check-double"></i> released</span>
+                                    <?php endif; ?>
                                 </div>
                                 <?php if ($item['description']): ?>
                                 <p class="text-xs text-gray-400 mt-1.5 line-clamp-1"><?php echo htmlspecialchars($item['description']); ?></p>
@@ -251,6 +339,7 @@ try {
                                     default => 'bg-gray-100 text-gray-600',
                                 }; ?>"><?php echo strtoupper($item['status']); ?></span>
                             <div class="flex gap-1">
+                                <a href="../index.php?page=tournament&id=<?php echo $item['id']; ?>" target="_blank" class="p-2 text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors" title="View public page"><i class="fas fa-external-link-alt"></i></a>
                                 <form method="POST">
                                     <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
                                     <input type="hidden" name="action" value="edit">

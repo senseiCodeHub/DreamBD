@@ -22,6 +22,7 @@ $action = $req['action'] ?? ($_GET['action'] ?? '');
 
 try {
     $db = Database::getInstance()->getConnection();
+    enforceTournamentDeadlines($db);
 
     switch ($action) {
         // ─── AGENT ACTIONS ───
@@ -253,7 +254,7 @@ try {
             if (!$userId || ($_SESSION['role'] ?? '') !== 'agent') { $response['message'] = 'Only agents can generate brackets.'; break; }
             $tournamentId = (int)($req['tournament_id'] ?? 0);
             if (!$tournamentId) { $response['message'] = 'Invalid tournament.'; break; }
-            $result = generateTournamentBracket($db, $tournamentId, (int)$userId);
+            $result = bracketBuild($db, $tournamentId, (int)$userId);
             $response = array_merge($response, $result);
             break;
 
@@ -262,30 +263,68 @@ try {
             $matchId = (int)($req['match_id'] ?? 0);
             $winnerTeamId = (int)($req['winner_team_id'] ?? 0);
             if (!$matchId || !$winnerTeamId) { $response['message'] = 'Invalid match or winner.'; break; }
-            $result = advanceTournamentWinner($db, $matchId, $winnerTeamId, (int)$userId);
+            $result = bracketAgentResolve($db, $matchId, $winnerTeamId, (int)$userId, $req);
             $response = array_merge($response, $result);
+            break;
+
+        case 'report_score':
+            if (!$userId) { $response['message'] = 'Please log in.'; break; }
+            $matchId = (int)($req['match_id'] ?? 0);
+            if (!$matchId) { $response['message'] = 'Invalid match.'; break; }
+            $response = array_merge($response, bracketReportScore($db, $matchId, (int)$userId, (int)($req['score1'] ?? -1), (int)($req['score2'] ?? -1)));
+            break;
+
+        case 'confirm_score':
+            if (!$userId) { $response['message'] = 'Please log in.'; break; }
+            $matchId = (int)($req['match_id'] ?? 0);
+            if (!$matchId) { $response['message'] = 'Invalid match.'; break; }
+            $response = array_merge($response, bracketConfirmScore($db, $matchId, (int)$userId));
+            break;
+
+        case 'dispute_score':
+            if (!$userId) { $response['message'] = 'Please log in.'; break; }
+            $matchId = (int)($req['match_id'] ?? 0);
+            if (!$matchId) { $response['message'] = 'Invalid match.'; break; }
+            $response = array_merge($response, bracketDisputeScore($db, $matchId, (int)$userId, (string)($req['note'] ?? '')));
+            break;
+
+        case 'check_in':
+            if (!$userId) { $response['message'] = 'Please log in.'; break; }
+            $tournamentId = (int)($req['tournament_id'] ?? 0);
+            if (!$tournamentId) { $response['message'] = 'Invalid tournament.'; break; }
+            $response = array_merge($response, tnCheckin($db, $tournamentId, (int)$userId));
+            break;
+
+        case 'get_bracket_summary':
+            $tournamentId = (int)($req['tournament_id'] ?? 0);
+            if (!$tournamentId) { $response['message'] = 'Invalid tournament.'; break; }
+            enforceTournamentDeadlines($db, $tournamentId);
+            $response = ['success' => true, 'summary' => bracketSummary($db, $tournamentId), 'bracket' => bracketMatchesForRender($db, $tournamentId)];
             break;
 
         case 'get_bracket':
             $tournamentId = (int)($req['tournament_id'] ?? 0);
             if (!$tournamentId) { $response['message'] = 'Invalid tournament.'; break; }
-            $bracket = getTournamentBracket($db, $tournamentId);
-            $response = ['success' => true, 'bracket' => $bracket];
+            $response = ['success' => true, 'bracket' => bracketMatchesForRender($db, $tournamentId), 'summary' => bracketSummary($db, $tournamentId)];
             break;
 
         case 'get_tournament_room':
             $tournamentId = (int)($req['tournament_id'] ?? 0);
             if (!$userId) { $response['message'] = 'Please log in.'; break; }
             if (!$tournamentId || !userCanAccessTournamentRoom($db, $tournamentId, (int)$userId)) { $response['message'] = 'You do not have access to this tournament room.'; break; }
+            enforceTournamentDeadlines($db, $tournamentId);
+            $roomTournament = getTournamentByIdWithCounts($db, $tournamentId);
             $response = [
                 'success' => true,
-                'tournament' => getTournamentByIdWithCounts($db, $tournamentId),
+                'tournament' => $roomTournament,
+                'checkin' => $roomTournament ? tnCheckinState($roomTournament, date('Y-m-d H:i:s')) : 'closed',
                 'participants' => getTournamentParticipants($db, $tournamentId),
                 'teams' => getTournamentTeams($db, $tournamentId),
                 'player_pool' => getTournamentPlayerPool($db, $tournamentId),
                 'messages' => getTournamentRoomMessages($db, $tournamentId),
                 'results' => getTournamentResultsBundle($db, $tournamentId),
-                'bracket' => getTournamentBracket($db, $tournamentId),
+                'bracket' => bracketMatchesForRender($db, $tournamentId),
+                'bracket_summary' => bracketSummary($db, $tournamentId),
             ];
             break;
 

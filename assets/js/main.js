@@ -73,6 +73,7 @@ class DreamBDApp {
             'profile': this.initProfilePage.bind(this),
             'products': this.initProductsPage.bind(this),
             'tournaments': this.initTournamentsPage.bind(this),
+            'tournament': this.initGPCountdowns.bind(this),
             'cart': this.initCartPage.bind(this)
         };
         
@@ -1116,7 +1117,7 @@ class DreamBDApp {
     initTournamentsPage() {
         
         const inits = [
-            'initGPParticles', 'initGPCards', 'initGPCountdowns', 'initGPTabs',
+            'initGPParticles', 'initGPCards', 'initGPCountdowns', 'initGPStatCount', 'initGPTabs',
             'initGPSearch', 'initGPModals', 'initGPForms', 'initGPUnregister',
             'initGPViewParticipants', 'initGPTeamManage', 'initGPTeamDelete', 'initGPHistory',
             'initGPIcons', 'initGPColors', 'initGPScroll'
@@ -1131,14 +1132,36 @@ class DreamBDApp {
     initGPCards() {
         // Card entrance animation - stagger fade-in
         const cards = document.querySelectorAll('.gp-card');
-        cards.forEach((card, i) => {
-            card.style.opacity = '0';
-            card.style.transform = 'translateY(20px)';
-            card.style.transition = 'opacity .5s ease, transform .5s cubic-bezier(.34,1.56,.64,1)';
+        cards.forEach((c, i) => {
+            c.style.opacity = '0';
+            c.style.transform = 'translateY(20px)';
+            c.style.transition = 'opacity .5s ease, transform .5s cubic-bezier(.22,1,.36,1)';
             setTimeout(() => {
-                card.style.opacity = '1';
-                card.style.transform = 'translateY(0)';
+                c.style.opacity = '1';
+                c.style.transform = 'translateY(0)';
             }, 80 + i * 60);
+        });
+    }
+
+    initGPStatCount() {
+        if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        document.querySelectorAll('.gp-hero-stats .gp-stat-value').forEach(el => {
+            if (el.dataset.counted) return;
+            el.dataset.counted = '1';
+            const raw = el.textContent.trim();
+            const prefix = (/^\D*/.exec(raw) || [''])[0];
+            const target = parseFloat(raw.replace(/[^\d.]/g, '')) || 0;
+            if (target <= 0) return;
+            el.textContent = prefix + '0';
+            const dur = 950;
+            const t0 = performance.now();
+            const step = (t) => {
+                const p = Math.min(1, (t - t0) / dur);
+                const e = 1 - Math.pow(1 - p, 3);
+                el.textContent = prefix + Math.round(target * e).toLocaleString('en-US');
+                if (p < 1) requestAnimationFrame(step);
+            };
+            requestAnimationFrame(step);
         });
     }
 

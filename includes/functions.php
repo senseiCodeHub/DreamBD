@@ -1,6 +1,9 @@
 <?php
 // Database helper functions - Clean version
 
+require_once __DIR__ . '/tournament_flow.php';
+require_once __DIR__ . '/tournament_bracket.php';
+
 function getProducts(PDO $pdo, $limit = null) {
     $sql = "SELECT * FROM products WHERE status = 'active'";
     if ($limit) {
@@ -1124,6 +1127,8 @@ function hydrateNotification(array &$notification): void {
         'p2p_trade_completed' => ['icon' => 'handshake', 'label' => 'P2P Trade', 'accent' => 'is-system', 'color' => '#10b981'],
         'report_resolved' => ['icon' => 'shield-alt', 'label' => 'Report Review', 'accent' => 'is-system', 'color' => '#8b5cf6'],
         'report_received' => ['icon' => 'flag', 'label' => 'Report Received', 'accent' => 'is-system', 'color' => '#f59e0b'],
+        'tournament_result' => ['icon' => 'medal', 'label' => 'Results', 'accent' => 'is-system', 'color' => '#10b981'],
+        'refund' => ['icon' => 'rotate-left', 'label' => 'Refund', 'accent' => 'is-system', 'color' => '#059669'],
     ];
     $type = $notification['type'] ?? 'system';
     $notification['meta'] = $metaMap[$type] ?? ['icon' => 'bell', 'label' => 'Update', 'accent' => 'is-system', 'color' => '#64748b'];
@@ -1151,6 +1156,12 @@ function hydrateNotification(array &$notification): void {
         $reportMsg = rawurlencode(mb_substr($notification['message'] ?? '', 0, 300));
         $notification['target_url'] = 'index.php?page=community&post=' . $postId;
         $notification['target_url'] .= '&report_msg=' . $reportMsg;
+    } elseif ($type === 'tournament' || $type === 'tournament_result') {
+        $tid = (int) ($notification['entity_id'] ?? 0);
+        $notification['target_url'] = $tid > 0 ? 'index.php?page=tournament&id=' . $tid : 'index.php?page=tournaments';
+        if ($type === 'tournament_result') $notification['target_url'] .= '#standings';
+    } elseif ($type === 'refund') {
+        $notification['target_url'] = 'index.php?page=balance';
     } else {
         $urlMap = [
             'share' => 'index.php?page=community',
@@ -2025,8 +2036,27 @@ function saveTournamentResults(PDO $pdo, int $tournamentId, int $agentId, array 
         return ['success' => false, 'message' => 'Add at least one team or player result.'];
     }
 
+    // ── Prize escrow cap: payouts can never exceed prize pool + collected fees ──
+    $requestedPrize = 0.0;
+    foreach (array_merge($cleanTeamResults, $cleanPlayerResults) as $row) {
+        $requestedPrize += max(0.0, (float) $row['prize_amount']);
+    }
+    $escrow = tnEscrowAvailable($pdo, $tournamentId);
+    if ($requestedPrize > $escrow + 0.0001) {
+        return ['success' => false, 'message' => 'Prize total ৳' . number_format($requestedPrize, 0) . ' exceeds available escrow of ৳' . number_format($escrow, 0) . '. Adjust prize amounts or fund the prize pool first.'];
+    }
+
     try {
         $pdo->beginTransaction();
+
+        // One-shot settlement: once escrow is released, results are final.
+        $lockStmt = $pdo->prepare("SELECT escrow_released FROM tournaments WHERE id = ? FOR UPDATE");
+        $lockStmt->execute([$tournamentId]);
+        if ((int) $lockStmt->fetchColumn() === 1) {
+            $pdo->rollBack();
+            return ['success' => false, 'message' => 'Results were already published for this tournament.'];
+        }
+
         $pdo->prepare("DELETE FROM tournament_results WHERE tournament_id = ?")->execute([$tournamentId]);
 
         $insertStmt = $pdo->prepare("
@@ -2069,7 +2099,7 @@ function saveTournamentResults(PDO $pdo, int $tournamentId, int $agentId, array 
 
         $pdo->prepare("UPDATE tournaments SET status = 'completed' WHERE id = ?")->execute([$tournamentId]);
 
-        // ── Auto-distribute prize money to winners ──
+        // ── Auto-distribute prize money to winners — strictly from escrow ──
         $allResults = array_merge($cleanTeamResults, $cleanPlayerResults);
         $totalPrizeDistributed = 0;
         foreach ($allResults as $result) {
@@ -2086,9 +2116,17 @@ function saveTournamentResults(PDO $pdo, int $tournamentId, int $agentId, array 
             }
             if (!$winnerUserId) continue;
 
+            if (!tnEscrowPayPrize($pdo, $tournamentId, $prize)) {
+                $pdo->rollBack();
+                return ['success' => false, 'message' => 'Escrow ran out while paying ৳' . number_format($prize, 0) . ' — no results were saved.'];
+            }
             $totalPrizeDistributed += $prize;
-            $stmt = $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
-            $stmt->execute([$prize, $winnerUserId]);
+            $stmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
+            $stmt->execute([$winnerUserId]);
+            $before = (float) $stmt->fetchColumn();
+            $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")->execute([$before + $prize, $winnerUserId]);
+            $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, reference_id, purpose) VALUES (?, 'prize', ?, ?, ?, ?, ?, 'tournament_prize')")
+                ->execute([$winnerUserId, $prize, $before, $before + $prize, 'Prize won in "' . mb_substr($tournament['title'] ?? '', 0, 150) . '"', $tournamentId]);
 
             createNotification(
                 $pdo,
@@ -2113,8 +2151,15 @@ function saveTournamentResults(PDO $pdo, int $tournamentId, int $agentId, array 
 
         updateTournamentLeaderboard($pdo, $tournamentId);
 
+        // Release leftover escrow (unspent fees + prize remainder) to the agent
+        $settlement = tnEscrowReleaseToAgent($pdo, $tournamentId);
+        $released = (float) ($settlement['released'] ?? 0);
+
         $pdo->commit();
-        return ['success' => true, 'message' => 'Tournament results submitted successfully!' . ($totalPrizeDistributed > 0 ? ' ৳' . number_format($totalPrizeDistributed, 0) . ' prize distributed.' : '')];
+        $msg = 'Tournament results submitted successfully!';
+        if ($totalPrizeDistributed > 0) $msg .= ' ৳' . number_format($totalPrizeDistributed, 0) . ' prize distributed.';
+        if ($released > 0) $msg .= ' ৳' . number_format($released, 0) . ' escrow released to agent.';
+        return ['success' => true, 'message' => $msg];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -2205,40 +2250,40 @@ function getUserTournamentRegistrations(PDO $pdo, int $userId): array {
 
 function registerForTournament(PDO $pdo, int $userId, int $tournamentId, string $teamName = ''): array {
     try {
-        // Check if already registered
-        $stmt = $pdo->prepare("SELECT id, status FROM tournament_participants WHERE tournament_id = ? AND user_id = ?");
+        $pdo->beginTransaction();
+
+        // Lock the tournament row first — closes the capacity race and enables FOR UPDATE below.
+        $stmt = $pdo->prepare("SELECT * FROM tournaments WHERE id = ? FOR UPDATE");
+        $stmt->execute([$tournamentId]);
+        $tournament = $stmt->fetch();
+        if (!$tournament) { $pdo->rollBack(); return ['success' => false, 'message' => 'Tournament not found.']; }
+        if (!in_array($tournament['status'], ['upcoming', 'live'])) { $pdo->rollBack(); return ['success' => false, 'message' => 'Registration closed.']; }
+
+        $entryFee = (float)$tournament['entry_fee'];
+
+        // Existing registration? Reactivate a cancelled one (charging the fee again),
+        // otherwise reject a confirmed duplicate.
+        $stmt = $pdo->prepare("SELECT id, status, fee_paid FROM tournament_participants WHERE tournament_id = ? AND user_id = ? FOR UPDATE");
         $stmt->execute([$tournamentId, $userId]);
         $existing = $stmt->fetch();
+        $isReactivate = $existing && $existing['status'] === 'cancelled';
 
-        if ($existing) {
-            if ($existing['status'] === 'cancelled') {
-                $stmt = $pdo->prepare("UPDATE tournament_participants SET status = 'confirmed', team_name = ?, created_at = NOW() WHERE id = ?");
-                $stmt->execute([$teamName, $existing['id']]);
-                return ['success' => true, 'message' => 'Registration reactivated!'];
-            }
+        if ($existing && !$isReactivate) {
+            $pdo->rollBack();
             return ['success' => false, 'message' => 'You are already registered for this tournament.'];
         }
 
-        // Get tournament with fee info
-        $stmt = $pdo->prepare("SELECT * FROM tournaments WHERE id = ?");
-        $stmt->execute([$tournamentId]);
-        $tournament = $stmt->fetch();
-        if (!$tournament) return ['success' => false, 'message' => 'Tournament not found.'];
-        if (!in_array($tournament['status'], ['upcoming', 'live'])) return ['success' => false, 'message' => 'Registration closed.'];
-
-        // Check max teams
+        // Check max teams (locked by the tournament row above)
         if ((int)$tournament['max_teams'] > 0) {
             $countStmt = $pdo->prepare("SELECT COUNT(*) FROM tournament_participants WHERE tournament_id = ? AND status = 'confirmed'");
             $countStmt->execute([$tournamentId]);
-            $currentCount = (int)$countStmt->fetchColumn();
-            if ($currentCount >= (int)$tournament['max_teams']) {
+            if ((int)$countStmt->fetchColumn() >= (int)$tournament['max_teams']) {
+                $pdo->rollBack();
                 return ['success' => false, 'message' => 'Tournament is full.'];
             }
         }
 
-        $entryFee = (float)$tournament['entry_fee'];
-        $pdo->beginTransaction();
-
+        $feeCharged = false;
         if ($entryFee > 0) {
             $stmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
             $stmt->execute([$userId]);
@@ -2249,23 +2294,32 @@ function registerForTournament(PDO $pdo, int $userId, int $tournamentId, string 
                 return ['success' => false, 'message' => 'Insufficient balance. Entry fee: ৳' . number_format($entryFee, 0)];
             }
             $newBalance = $balance - $entryFee;
-            $stmt = $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?");
-            $stmt->execute([$newBalance, $userId]);
+            $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")->execute([$newBalance, $userId]);
+            $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, purpose) VALUES (?, 'entry_fee', ?, ?, ?, ?, 'tournament_entry')")
+                ->execute([$userId, $entryFee, $balance, $newBalance, 'Entry fee for "' . mb_substr($tournament['title'] ?? '', 0, 150) . '"']);
+            // Hold the fee in tournament escrow (released to the agent on completion)
+            tnEscrowCollectFee($pdo, $tournamentId, $entryFee);
+            $feeCharged = true;
+        }
 
-            $agentId = (int)$tournament['agent_id'];
-            if ($agentId > 0) {
-                $stmt = $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
-                $stmt->execute([$entryFee, $agentId]);
-                $stmt = $pdo->prepare("INSERT INTO agent_transactions (agent_id, type, amount, reference_type, reference_id, description) VALUES (?, 'credit', ?, 'entry_fee', ?, 'Entry fee')");
-                $stmt->execute([$agentId, $entryFee, $tournamentId]);
+        if ($existing) {
+            $pdo->prepare("UPDATE tournament_participants SET status = 'confirmed', team_name = ?, fee_paid = ?, checked_in = 0, checked_in_at = NULL, created_at = NOW() WHERE id = ?")
+                ->execute([$teamName, $feeCharged ? 1 : 0, $existing['id']]);
+        } else {
+            try {
+                $pdo->prepare("INSERT INTO tournament_participants (tournament_id, user_id, team_name, fee_paid, status) VALUES (?, ?, ?, ?, 'confirmed')")
+                    ->execute([$tournamentId, $userId, $teamName, $feeCharged ? 1 : 0]);
+            } catch (PDOException $e) {
+                $pdo->rollBack();
+                if ((string) $e->getCode() === '23000') return ['success' => false, 'message' => 'You are already registered for this tournament.'];
+                throw $e;
             }
         }
 
-        $stmt = $pdo->prepare("INSERT INTO tournament_participants (tournament_id, user_id, team_name, fee_paid, status) VALUES (?, ?, ?, ?, 'confirmed')");
-        $stmt->execute([$tournamentId, $userId, $teamName, $entryFee > 0 ? 1 : 0]);
-
         $pdo->commit();
-        return ['success' => true, 'message' => 'Successfully registered for the tournament!'];
+        createNotification($pdo, $userId, (int)($tournament['agent_id'] ?? null) ?: null, 'tournament',
+            'Registration confirmed for "' . ($tournament['title'] ?? 'Tournament') . '"' . ($feeCharged ? ' — entry fee ৳' . number_format($entryFee, 0) . ' held in escrow.' : '.'), $tournamentId);
+        return ['success' => true, 'message' => $isReactivate ? 'Registration reactivated!' : 'Successfully registered for the tournament!'];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) { $pdo->rollBack(); }
         return ['success' => false, 'message' => 'Server error.'];
@@ -2288,37 +2342,28 @@ function unregisterFromTournament(PDO $pdo, int $userId, int $tournamentId): arr
         $participant = $stmt->fetch();
         if (!$participant) { $pdo->rollBack(); return ['success' => false, 'message' => 'No active registration found.']; }
 
-        // Refund entry fee if paid
+        // Once the bracket exists, rosters are locked — no refunds via leave.
+        $bm = $pdo->prepare("SELECT COUNT(*) FROM tournament_matches WHERE tournament_id = ?");
+        $bm->execute([$tournamentId]);
+        if ((int)$bm->fetchColumn() > 0) {
+            $pdo->rollBack();
+            return ['success' => false, 'message' => 'The bracket has started — leaving is disabled.'];
+        }
+
+        // Refund entry fee if paid — always from escrow (never prints money)
         $entryFee = (float)$tournament['entry_fee'];
+        $refunded = false;
         if ($entryFee > 0 && ($participant['fee_paid'] ?? 0)) {
-            // Get user balance before refund
             $stmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
             $stmt->execute([$userId]);
             $userBal = (float)($stmt->fetchColumn() ?: 0);
-            $userAfter = $userBal + $entryFee;
 
-            // Refund to user
-            $stmt = $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?");
-            $stmt->execute([$userAfter, $userId]);
-
-            // Log user refund
-            $stmt = $pdo->prepare("INSERT INTO agent_transactions (agent_id, type, amount, balance_before, balance_after, reference_type, reference_id, description) VALUES (?, 'credit', ?, ?, ?, 'entry_fee_refund', ?, 'Entry fee refund for leaving tournament')");
-            $stmt->execute([$userId, $entryFee, $userBal, $userAfter, $tournamentId]);
-
-            // Deduct from agent
-            $agentId = (int)$tournament['agent_id'];
-            if ($agentId > 0) {
-                $stmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
-                $stmt->execute([$agentId]);
-                $agentBal = (float)($stmt->fetchColumn() ?: 0);
-                $agentAfter = $agentBal - $entryFee;
-
-                $stmt = $pdo->prepare("UPDATE users SET balance = ? WHERE id = ? AND balance >= ?");
-                $stmt->execute([$agentAfter, $agentId, $entryFee]);
-
-                // Log agent deduction
-                $stmt = $pdo->prepare("INSERT INTO agent_transactions (agent_id, type, amount, balance_before, balance_after, reference_type, reference_id, description) VALUES (?, 'debit', ?, ?, ?, 'entry_fee_refund', ?, 'Entry fee refunded to participant')");
-                $stmt->execute([$agentId, $entryFee, $agentBal, $agentAfter, $tournamentId]);
+            if (tnEscrowRefundFee($pdo, $tournament, $userId, $entryFee)) {
+                $userAfter = $userBal + $entryFee;
+                $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")->execute([$userAfter, $userId]);
+                $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, purpose) VALUES (?, 'refund', ?, ?, ?, ?, 'tournament_entry')")
+                    ->execute([$userId, $entryFee, $userBal, $userAfter, 'Entry fee refunded — left "' . mb_substr($tournament['title'] ?? '', 0, 150) . '"']);
+                $refunded = true;
             }
         }
 
@@ -2327,8 +2372,8 @@ function unregisterFromTournament(PDO $pdo, int $userId, int $tournamentId): arr
         $stmt->execute([$participant['id']]);
 
         $pdo->commit();
-        $msg = 'Registration cancelled.' . ($entryFee > 0 ? ' Entry fee of ৳' . number_format($entryFee, 0) . ' refunded.' : '');
-        return ['success' => true, 'message' => $msg, 'refund' => $entryFee];
+        $msg = 'Registration cancelled.' . ($refunded ? ' Entry fee of ৳' . number_format($entryFee, 0) . ' refunded.' : '');
+        return ['success' => true, 'message' => $msg, 'refund' => $refunded ? $entryFee : 0];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
         return ['success' => false, 'message' => 'Server error.'];
@@ -2346,7 +2391,7 @@ function cancelTournament(PDO $pdo, int $tournamentId, int $agentId): array {
         if ($tournament['status'] === 'completed') { $pdo->rollBack(); return ['success' => false, 'message' => 'Cannot cancel a completed tournament.']; }
         if ($tournament['status'] === 'cancelled') { $pdo->rollBack(); return ['success' => false, 'message' => 'Tournament already cancelled.']; }
 
-        // Refund entry fees to all confirmed participants
+        // Refund entry fees to all confirmed participants — strictly from escrow
         $entryFee = (float)$tournament['entry_fee'];
         if ($entryFee > 0) {
             $stmt = $pdo->prepare("SELECT tp.user_id, tp.fee_paid FROM tournament_participants tp WHERE tp.tournament_id = ? AND tp.status = 'confirmed'");
@@ -2354,19 +2399,18 @@ function cancelTournament(PDO $pdo, int $tournamentId, int $agentId): array {
             $participants = $stmt->fetchAll();
             foreach ($participants as $p) {
                 if ($p['fee_paid'] ?? 0) {
-                    $stmt = $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
-                    $stmt->execute([$entryFee, (int)$p['user_id']]);
-                    createNotification($pdo, (int)$p['user_id'], $agentId, 'refund', 'Entry fee ৳' . number_format($entryFee, 0) . ' refunded for cancelled tournament "' . ($tournament['title'] ?? 'Tournament') . '".', $tournamentId);
+                    if (tnEscrowRefundFee($pdo, $tournament, (int)$p['user_id'], $entryFee)) {
+                        $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?")->execute([$entryFee, (int)$p['user_id']]);
+                        $pdo->prepare("INSERT INTO transactions (user_id, type, amount, description, purpose) VALUES (?, 'refund', ?, ?, 'tournament_cancel')")
+                            ->execute([(int)$p['user_id'], $entryFee, 'Entry fee refunded — tournament "' . mb_substr($tournament['title'] ?? '', 0, 150) . '" cancelled']);
+                        createNotification($pdo, (int)$p['user_id'], $agentId, 'refund', 'Entry fee ৳' . number_format($entryFee, 0) . ' refunded for cancelled tournament "' . ($tournament['title'] ?? 'Tournament') . '".', $tournamentId);
+                    }
                 }
             }
         }
 
-        // Refund prize money back to agent
-        $prizeMoney = (float)str_replace(',', '', $tournament['prize_money'] ?? '0');
-        if ($prizeMoney > 0) {
-            $stmt = $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
-            $stmt->execute([$prizeMoney, $agentId]);
-        }
+        // Return remaining escrow (prize pool + any unclaimed fees) to the agent
+        tnEscrowReleaseToAgent($pdo, $tournamentId);
 
         // Cancel all participant registrations
         $stmt = $pdo->prepare("UPDATE tournament_participants SET status = 'cancelled' WHERE tournament_id = ? AND status = 'confirmed'");
@@ -2603,25 +2647,24 @@ function joinTournamentWithTeam(PDO $pdo, int $teamId, int $tournamentId, int $u
         $stmt->execute([$tournamentId, $teamId]);
         if ($stmt->fetch()) return ['success' => false, 'message' => 'Team already registered.'];
 
-        // Get tournament
+        // Get tournament (lock row — closes capacity race)
         $stmt = $pdo->prepare("SELECT * FROM tournaments WHERE id = ? FOR UPDATE");
         $stmt->execute([$tournamentId]);
         $tournament = $stmt->fetch();
-        if (!$tournament) return ['success' => false, 'message' => 'Tournament not found.'];
-        if (!in_array($tournament['status'], ['upcoming', 'live'])) return ['success' => false, 'message' => 'Registration closed.'];
+        if (!$tournament) { $pdo->rollBack(); return ['success' => false, 'message' => 'Tournament not found.']; }
+        if (!in_array($tournament['status'], ['upcoming', 'live'])) { $pdo->rollBack(); return ['success' => false, 'message' => 'Registration closed.']; }
 
         // Check capacity
         $stmt = $pdo->prepare("SELECT COUNT(*) FROM tournament_participants WHERE tournament_id = ? AND status = 'confirmed'");
         $stmt->execute([$tournamentId]);
         $count = (int)$stmt->fetchColumn();
         $max = (int)$tournament['max_teams'];
-        if ($max > 0 && $count >= $max) return ['success' => false, 'message' => 'Tournament is full.'];
+        if ($max > 0 && $count >= $max) { $pdo->rollBack(); return ['success' => false, 'message' => 'Tournament is full.']; }
 
         $entryFee = (float)$tournament['entry_fee'];
-        $pdo->beginTransaction();
 
         if ($entryFee > 0) {
-            // Deduct entry fee from captain's balance or team fund
+            // Deduct entry fee from captain's balance
             $stmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
             $stmt->execute([$userId]);
             $user = $stmt->fetch();
@@ -2631,26 +2674,29 @@ function joinTournamentWithTeam(PDO $pdo, int $teamId, int $tournamentId, int $u
                 return ['success' => false, 'message' => 'Insufficient balance. Entry fee: ৳' . number_format($entryFee, 0)];
             }
             $newBalance = $balance - $entryFee;
-            $stmt = $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?");
-            $stmt->execute([$newBalance, $userId]);
+            $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")->execute([$newBalance, $userId]);
+            $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, purpose) VALUES (?, 'entry_fee', ?, ?, ?, ?, 'tournament_entry')")
+                ->execute([$userId, $entryFee, $balance, $newBalance, 'Team entry fee for "' . mb_substr($tournament['title'] ?? '', 0, 150) . '"']);
 
-            // Credit the agent
-            $agentId = (int)$tournament['agent_id'];
-            if ($agentId > 0) {
-                $stmt = $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
-                $stmt->execute([$entryFee, $agentId]);
-                $stmt = $pdo->prepare("INSERT INTO agent_transactions (agent_id, type, amount, reference_type, reference_id, description) VALUES (?, 'credit', ?, 'entry_fee', ?, 'Team entry fee')");
-                $stmt->execute([$agentId, $entryFee, $tournamentId]);
-            }
+            // Hold the fee in tournament escrow
+            tnEscrowCollectFee($pdo, $tournamentId, $entryFee);
         }
 
-        $stmt = $pdo->prepare("INSERT INTO tournament_participants (tournament_id, user_id, team_id, team_name, fee_paid, status) VALUES (?, ?, ?, ?, ?, 'confirmed')");
         $teamStmt = $pdo->prepare("SELECT name FROM teams WHERE id = ?");
         $teamStmt->execute([$teamId]);
         $team = $teamStmt->fetch();
-        $stmt->execute([$tournamentId, $userId, $teamId, $team['name'] ?? 'Team', $entryFee > 0 ? 1 : 0]);
+        try {
+            $stmt = $pdo->prepare("INSERT INTO tournament_participants (tournament_id, user_id, team_id, team_name, fee_paid, status) VALUES (?, ?, ?, ?, ?, 'confirmed')");
+            $stmt->execute([$tournamentId, $userId, $teamId, $team['name'] ?? 'Team', $entryFee > 0 ? 1 : 0]);
+        } catch (PDOException $e) {
+            $pdo->rollBack();
+            if ((string) $e->getCode() === '23000') return ['success' => false, 'message' => 'Team already registered.'];
+            throw $e;
+        }
 
         $pdo->commit();
+        createNotification($pdo, $userId, (int)($tournament['agent_id'] ?? null) ?: null, 'tournament',
+            'Team "' . ($team['name'] ?? 'Team') . '" registered for "' . ($tournament['title'] ?? 'Tournament') . '".', $tournamentId);
         return ['success' => true, 'message' => 'Team registered for tournament!'];
     } catch (Throwable $e) {
         if ($pdo->inTransaction()) $pdo->rollBack();
@@ -2731,10 +2777,16 @@ function createTournamentByAgent(PDO $pdo, int $agentId, array $data): array {
         $stmt = $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?");
         $stmt->execute([$after, $agentId]);
 
-        $stmt = $pdo->prepare("INSERT INTO tournaments (title, description, prize_money, category, max_teams, game_icon, accent_color, starts_at, status, entry_fee, agent_id, prize_breakdown) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'upcoming', ?, ?, ?)");
+        $bracketType = in_array($data['bracket_type'] ?? '', ['single_elimination', 'double_elimination', 'round_robin'], true)
+            ? $data['bracket_type'] : 'single_elimination';
+        $bestOf = max(1, min(9, (int)($data['best_of'] ?? 1)));
+        $checkinMinutes = max(5, min(180, (int)($data['checkin_minutes'] ?? 30)));
+
+        $stmt = $pdo->prepare("INSERT INTO tournaments (title, description, rules, prize_money, category, max_teams, game_icon, accent_color, starts_at, status, entry_fee, agent_id, prize_breakdown, bracket_type, best_of, checkin_minutes, fee_escrow, prize_escrow) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'upcoming', ?, ?, ?, ?, ?, ?, 0, ?)");
         $stmt->execute([
             trim($data['title'] ?? ''),
             trim($data['description'] ?? ''),
+            trim($data['rules'] ?? ''),
             $data['prize_money'] ?? '',
             trim($data['category'] ?? ''),
             (int)($data['max_teams'] ?? 0),
@@ -2744,6 +2796,10 @@ function createTournamentByAgent(PDO $pdo, int $agentId, array $data): array {
             (float)($data['entry_fee'] ?? 0),
             $agentId,
             $data['prize_breakdown'] ?? null,
+            $bracketType,
+            $bestOf,
+            $checkinMinutes,
+            $prizeMoney,
         ]);
         $tournamentId = (int)$pdo->lastInsertId();
 

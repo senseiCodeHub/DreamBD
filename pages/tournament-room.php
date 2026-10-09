@@ -24,8 +24,9 @@ $teams = getTournamentTeams($db, $tournamentId);
 $playerPool = getTournamentPlayerPool($db, $tournamentId);
 $messages = getTournamentRoomMessages($db, $tournamentId);
 $results = getTournamentResultsBundle($db, $tournamentId);
-$bracket = getTournamentBracket($db, $tournamentId);
+$bracket = $tournamentId > 0 ? bracketMatchesForRender($db, $tournamentId) : [];
 $hasBracket = !empty($bracket);
+if ($tournamentId > 0) { enforceTournamentDeadlines($db, $tournamentId); }
 $isAgentOwner = (int) ($tournament['agent_id'] ?? 0) === $viewerId && (($_SESSION['role'] ?? '') === 'agent');
 $status = (string) ($tournament['status'] ?? 'upcoming');
 $accent = htmlspecialchars($tournament['accent_color'] ?? '#7c3aed');
@@ -40,11 +41,15 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
   --tr-glass: rgba(255,255,255,0.85);
   --tr-glass-border: rgba(148,163,184,0.18);
   --tr-bg-soft: rgba(148,163,184,0.07);
+  --tr-muted: #64748b;
+  --tfd-br-title:#111827; --tfd-br-muted:#94a3b8; --tfd-br-slot:#334155; --tfd-br-card:#f8fafc; --tfd-br-border:#e5e7eb;
 }
 .dark, [data-theme="dark"] {
   --tr-glass: rgba(15,23,42,0.88);
   --tr-glass-border: rgba(71,85,105,0.35);
   --tr-bg-soft: rgba(30,41,59,0.6);
+  --tr-muted: #94a3b8;
+  --tfd-br-title:#fff; --tfd-br-muted:rgba(255,255,255,.45); --tfd-br-slot:rgba(255,255,255,.8); --tfd-br-card:rgba(255,255,255,.04); --tfd-br-border:rgba(255,255,255,.09);
 }
 
 .tr-shell { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; color: var(--text-primary, #0f172a); }
@@ -57,8 +62,7 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
 .tr-hero { position: relative; padding: 28px 28px 24px; margin-bottom: 24px; border-radius: var(--tr-radius); background: var(--tr-glass); border: 1px solid var(--tr-glass-border); box-shadow: 0 4px 24px rgba(0,0,0,0.04); overflow: hidden; }
 .tr-hero::before { content: ""; position: absolute; inset: 0 0 auto; height: 4px; background: linear-gradient(90deg, var(--tr-accent), color-mix(in srgb, var(--tr-accent) 60%, #fff)); }
 .tr-hero-accent-bg { position: absolute; top: -60%; right: -10%; width: 300px; height: 300px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--tr-accent) 12%, transparent), transparent 70%); pointer-events: none; }
-.tr-kicker { display: inline-flex; align-items: center; gap: 6px; padding: 4px 14px; border-radius: 999px; background: color-mix(in srgb, var(--tr-accent) 12%, transparent); color: var(--tr-accent); font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; position: relative; z-index: 1; }
-.tr-title-row { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-top: 14px; flex-wrap: wrap; position: relative; z-index: 1; }
+.tr-title-row { display: flex; align-items: start; justify-content: space-between; gap: 16px; margin-top: 0; flex-wrap: wrap; position: relative; z-index: 1; }
 .tr-title-row h1 { margin: 0; font-size: clamp(24px, 3.6vw, 38px); font-weight: 800; line-height: 1.08; letter-spacing: -.02em; }
 .tr-meta { display: flex; flex-wrap: wrap; gap: 10px 18px; margin-top: 10px; color: #64748b; font-size: 13px; }
 .dark .tr-meta, [data-theme="dark"] .tr-meta { color: #94a3b8; }
@@ -75,7 +79,9 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
 
 /* -- Status buttons row */
 .tr-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.tr-hero-actions { margin-top: 18px; position: relative; z-index: 1; }
+.tr-hero-actions { margin-top: 20px; position: relative; z-index: 1; display: inline-flex; flex-wrap: wrap; gap: 4px; padding: 5px; background: var(--tr-bg-soft); border: 1px solid var(--tr-glass-border); border-radius: 14px; }
+.tr-hero-actions .tr-btn.ghost { background: transparent; }
+.tr-hero-actions .tr-btn.ghost:hover { background: rgba(148,163,184,0.16); }
 
 /* -- Buttons */
 .tr-btn { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 10px; padding: 9px 16px; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: all .15s; }
@@ -178,6 +184,7 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
 
 /* -- Bracket */
 .tr-bracket-container { position: relative; }
+<?php require __DIR__ . '/../includes/bracket_styles.php'; ?>
 .tr-bracket-wrapper { display: flex; gap: 0; overflow-x: auto; padding: 16px 4px 20px; min-height: 220px; align-items: stretch; }
 .tr-bracket-round { display: flex; flex-direction: column; gap: 8px; min-width: 175px; flex-shrink: 0; position: relative; padding: 0 12px; }
 .tr-bracket-round:not(:last-child)::after { content: ''; position: absolute; right: -4px; top: 40%; bottom: 40%; width: 2px; background: linear-gradient(to bottom, transparent, var(--tr-accent), transparent); opacity: .3; }
@@ -234,7 +241,6 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
     <!-- ===== Hero ===== -->
     <section class="tr-hero">
         <div class="tr-hero-accent-bg"></div>
-        <span class="tr-kicker"><i class="fas fa-door-open"></i> Tournament room</span>
         <div class="tr-title-row">
             <div>
                 <h1><?php echo $title; ?></h1>
@@ -242,7 +248,7 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
                     <span><i class="fas fa-calendar-days"></i> <?php echo !empty($tournament['starts_at']) ? date('M j, Y g:i A', strtotime($tournament['starts_at'])) : 'Start time TBD'; ?></span>
                     <span><i class="fas fa-users"></i> <?php echo (int) ($tournament['registered_teams'] ?? 0); ?> joined</span>
                     <span><i class="fas fa-tag"></i> <?php echo htmlspecialchars($tournament['category'] ?? 'General'); ?></span>
-                    <span><i class="fas fa-trophy"></i> Prize ৳<?php echo htmlspecialchars((string) ($tournament['prize_money'] ?? '0')); ?></span>
+                    <span><i class="fas fa-trophy"></i> <?php echo (float)($tournament['prize_money'] ?? 0) > 0 ? 'Prize ৳' . htmlspecialchars((string)$tournament['prize_money']) : 'Trophy only'; ?></span>
                     <?php if ((float)($tournament['entry_fee'] ?? 0) > 0): ?>
                     <span><i class="fas fa-coins"></i> Entry ৳<?php echo number_format((float)$tournament['entry_fee'], 0); ?></span>
                     <?php endif; ?>
@@ -251,10 +257,10 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
                     <?php endif; ?>
                 </div>
                 <?php if (!empty($tournament['description'])): ?>
-                    <p style="margin-top:12px;font-size:14px;line-height:1.6;color:#64748b"><?php echo htmlspecialchars($tournament['description']); ?></p>
+                    <p style="margin-top:12px;font-size:14px;line-height:1.6;color:var(--tr-muted)"><?php echo htmlspecialchars($tournament['description']); ?></p>
                 <?php endif; ?>
             </div>
-            <span class="tr-badge <?php echo htmlspecialchars($status); ?>"><i class="fas fa-signal"></i> <?php echo strtoupper($status); ?></span>
+            <span class="tr-badge <?php echo htmlspecialchars($status); ?>" id="trStatusBadge"><i class="fas fa-signal"></i> <?php echo strtoupper($status); ?></span>
         </div>
         <?php if ($isAgentOwner): ?>
             <div class="tr-actions tr-hero-actions">
@@ -288,7 +294,7 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
                             $isSelf = (int)($message['sender_id'] ?? 0) === $viewerId;
                             $avatar = htmlspecialchars($message['avatar'] ?? 'default.png');
                         ?>
-                            <article class="tr-chat-card<?php echo $isSelf ? ' is-self' : ''; ?>">
+                            <article class="tr-chat-card<?php echo $isSelf ? ' is-self' : ''; ?>" data-message-id="<?php echo (int)($message['id'] ?? 0); ?>">
                                 <?php if (!$isSelf): ?>
                                 <img src="assets/avatars/<?php echo $avatar; ?>" alt="" class="tr-chat-avatar" onerror="this.src='assets/avatars/default.png'">
                                 <?php endif; ?>
@@ -335,7 +341,7 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
                         <?php if (!$hasBracket): ?>
                         <div class="tr-empty" id="trBracketEmpty"><i class="fas fa-diagram-project"></i><p>Bracket not yet generated. The tournament agent can generate a bracket once participants are registered.</p></div>
                         <?php else: ?>
-                        <?php renderBracketHTML($bracket); ?>
+                        <?php echo bracketRenderStages($bracket); ?>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -455,7 +461,10 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
                                     <strong><?php echo htmlspecialchars($team['linked_team_name'] ?: $team['team_name'] ?: 'Team'); ?></strong>
                                     <span><?php echo (int) ($team['member_count'] ?? 0); ?> members &middot; <?php echo htmlspecialchars($team['captain_name'] ?: $team['captain_username'] ?: '?'); ?></span>
                                 </div>
-                                <span class="tr-badge" style="font-size:10px;padding:3px 10px;background:color-mix(in srgb, var(--tr-accent) 10%, transparent);color:var(--tr-accent)"><?php echo htmlspecialchars(strtoupper($team['status'] ?? 'ok')); ?></span>
+                                <?php $teamStatus = (string) ($team['status'] ?? 'ok'); ?>
+                                <?php if (!in_array($teamStatus, ['ok', 'active', ''], true)): ?>
+                                <span class="tr-badge" style="font-size:10px;padding:3px 10px;background:color-mix(in srgb, var(--tr-accent) 10%, transparent);color:var(--tr-accent)"><?php echo htmlspecialchars(strtoupper($teamStatus)); ?></span>
+                                <?php endif; ?>
                             </div>
                         <?php endforeach; ?>
                     </div>
@@ -661,14 +670,12 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
         return date.toLocaleString([], { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
     }
 
-    // ─── SSE: Real-time chat & status ───
+    // ─── SSE: Real-time chat, bracket & status ───
     var lastMessageId = 0;
-    var existingMessages = document.querySelectorAll('#trChatFeed .tr-chat-card');
-    if (existingMessages.length) {
-        var lastMsg = existingMessages[existingMessages.length - 1];
-        var timeEl = lastMsg.querySelector('.tr-time');
-        if (timeEl && timeEl.textContent) { lastMessageId = Date.now(); }
-    }
+    Array.prototype.forEach.call(document.querySelectorAll('#trChatFeed .tr-chat-card[data-message-id]'), function (el) {
+        var mid = parseInt(el.getAttribute('data-message-id') || '0', 10);
+        if (mid > lastMessageId) lastMessageId = mid;
+    });
     var sseUrl = 'handlers/tournament_stream.php?tournament_id=' + tournamentId + '&last_id=' + lastMessageId;
     var evtSource = new EventSource(sseUrl);
 
@@ -693,7 +700,7 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
                 if (meta.note) { roomMeta += '<div class="rc-row"><i class="fas fa-sticky-note"></i> ' + escapeHtml(meta.note) + '</div>'; }
                 roomMeta += '</div>';
             }
-            return '<article class="tr-chat-card' + (isSelf ? ' is-self' : '') + '">' +
+            return '<article class="tr-chat-card' + (isSelf ? ' is-self' : '') + '" data-message-id="' + parseInt(message.id || '0', 10) + '">' +
                 (isSelf ? '' : '<img src="assets/avatars/' + escapeAttr(avatar) + '" alt="" class="tr-chat-avatar" onerror="this.src=\'assets/avatars/default.png\'">') +
                 '<div class="tr-chat-bubble">' +
                 '<strong>' + escapeHtml(message.full_name || message.username || 'User') + '</strong>' +
@@ -706,15 +713,41 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
         feed.scrollTop = feed.scrollHeight;
     }
 
+    // Dedupe: skip messages already rendered (SSE may re-send after reconnect)
+    var renderedIds = {};
+    Array.prototype.forEach.call(document.querySelectorAll('#trChatFeed .tr-chat-card[data-message-id]'), function (el) {
+        renderedIds[el.getAttribute('data-message-id')] = true;
+    });
+
     evtSource.addEventListener('messages', function (event) {
         try {
             var msgs = JSON.parse(event.data);
             if (Array.isArray(msgs) && msgs.length) {
-                appendMessages(msgs);
-                msgs.forEach(function (m) {
-                    var mid = parseInt(m.id || '0', 10);
-                    if (mid > lastMessageId) lastMessageId = mid;
+                msgs = msgs.filter(function (m) {
+                    var key = String(m.id || '');
+                    if (!key || renderedIds[key]) return false;
+                    renderedIds[key] = true;
+                    return true;
                 });
+                if (msgs.length) {
+                    appendMessages(msgs);
+                    msgs.forEach(function (m) {
+                        var mid = parseInt(m.id || '0', 10);
+                        if (mid > lastMessageId) lastMessageId = mid;
+                    });
+                }
+            }
+        } catch (e) {}
+    });
+
+    evtSource.addEventListener('bracket', function (event) {
+        try {
+            var data = JSON.parse(event.data);
+            if (Array.isArray(data.bracket) && data.bracket.length) {
+                renderBracket(data.bracket);
+                if (data.status === 'completed') {
+                    setTimeout(function () { window.location.reload(); }, 1500);
+                }
             }
         } catch (e) {}
     });
@@ -723,15 +756,10 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
         try {
             var data = JSON.parse(event.data);
             if (data.status) {
-                var badge = document.querySelector('.tr-badge.' + data.status) || document.querySelector('.tr-badge');
+                var badge = document.getElementById('trStatusBadge');
                 if (!badge) { window.location.reload(); return; }
-                var allBadges = document.querySelectorAll('.tr-badge');
-                allBadges.forEach(function (b) {
-                    var cls = b.className.split(' ').filter(function (c) { return c === 'tr-badge'; }).join(' ');
-                    b.className = cls;
-                    b.classList.add(data.status);
-                    b.innerHTML = '<i class="fas fa-signal"></i> ' + data.status.toUpperCase();
-                });
+                badge.className = 'tr-badge ' + data.status;
+                badge.innerHTML = '<i class="fas fa-signal"></i> ' + data.status.toUpperCase();
             }
         } catch (e) {}
     });
@@ -903,6 +931,8 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
     }
 
     // ─── Bracket ───
+    var stageOrder = ['single', 'winners', 'losers', 'grandfinal', 'group'];
+    var stageTitles = { single: 'Bracket', winners: 'Winners Bracket', losers: 'Losers Bracket', grandfinal: 'Grand Final', group: 'Group Stage' };
     function renderBracket(bracket) {
         var container = document.getElementById('trBracketContainer');
         if (!container) return;
@@ -910,40 +940,52 @@ $title = htmlspecialchars($tournament['title'] ?? 'Tournament');
             container.innerHTML = '<div class="tr-empty"><i class="fas fa-diagram-project"></i><p>Bracket not yet generated.</p></div>';
             return;
         }
-        var rounds = {};
+        var stages = {};
         bracket.forEach(function (match) {
+            var st = match.stage || 'single';
+            if (!stages[st]) stages[st] = {};
             var r = parseInt(match.round || '1', 10);
-            if (!rounds[r]) rounds[r] = [];
-            rounds[r].push(match);
+            if (!stages[st][r]) stages[st][r] = [];
+            stages[st][r].push(match);
         });
-        var roundKeys = Object.keys(rounds).sort(function (a, b) { return a - b; });
-        var html = '<div class="tr-bracket-wrapper">';
-        roundKeys.forEach(function (roundNum) {
-            html += '<div class="tr-bracket-round">';
-            html += '<div class="tr-bracket-round-header">Round ' + roundNum + '</div>';
-            html += '<div class="tr-bracket-matches">';
-            (rounds[roundNum] || []).forEach(function (match) {
-                var team1 = escapeHtml(match.team1_name || 'TBD');
-                var team2 = escapeHtml(match.team2_name || 'TBD');
-                var winner = match.winner_name || '';
-                var status = match.status || 'scheduled';
-                var matchId = parseInt(match.id || '0', 10);
-                var team1Id = parseInt(match.team1_id || '0', 10);
-                var team2Id = parseInt(match.team2_id || '0', 10);
-                html += '<div class="tr-bracket-match" data-match-id="' + matchId + '" data-team1-id="' + team1Id + '" data-team2-id="' + team2Id + '">';
-                html += '<div class="tr-bracket-team' + (winner && winner === team1 ? ' is-winner' : '') + '" data-match-id="' + matchId + '" data-team-id="' + team1Id + '">' + team1 + '</div>';
-                html += '<div class="tr-bracket-vs">VS</div>';
-                html += '<div class="tr-bracket-team' + (winner && winner === team2 ? ' is-winner' : '') + '" data-match-id="' + matchId + '" data-team-id="' + team2Id + '">' + team2 + '</div>';
-                if (status === 'completed' && winner) {
-                    html += '<div class="tr-bracket-winner"><i class="fas fa-trophy"></i> ' + escapeHtml(winner) + '</div>';
-                } else if (status === 'live') {
-                    html += '<div class="tr-bracket-live">Live</div>';
-                }
-                html += '</div>';
+        var stageKeys = Object.keys(stages).sort(function (a, b) {
+            var ia = stageOrder.indexOf(a), ib = stageOrder.indexOf(b);
+            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+        });
+        var html = '';
+        stageKeys.forEach(function (st) {
+            html += '<div class="tr-bracket-stage"><div class="tr-bracket-stage-title">' + escapeHtml(stageTitles[st] || st) + '</div><div class="tr-bracket-wrapper">';
+            var roundKeys = Object.keys(stages[st]).sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+            roundKeys.forEach(function (roundNum) {
+                html += '<div class="tr-bracket-round">';
+                html += '<div class="tr-bracket-round-header">Round ' + roundNum + '</div>';
+                html += '<div class="tr-bracket-matches">';
+                (stages[st][roundNum] || []).forEach(function (match) {
+                    var team1 = escapeHtml(match.team1_name || 'TBD');
+                    var team2 = escapeHtml(match.team2_name || 'TBD');
+                    var winner = match.winner_name || '';
+                    var status = match.status || 'scheduled';
+                    var matchId = parseInt(match.id || '0', 10);
+                    var team1Id = parseInt(match.team1_id || '0', 10);
+                    var team2Id = parseInt(match.team2_id || '0', 10);
+                    var rpt = match.report_state || 'none';
+                    html += '<div class="tr-bracket-match" data-match-id="' + matchId + '" data-team1-id="' + team1Id + '" data-team2-id="' + team2Id + '">';
+                    html += '<div class="tr-bracket-team' + (winner && winner === team1 ? ' is-winner' : '') + '" data-match-id="' + matchId + '" data-team-id="' + team1Id + '">' + team1 + (match.score1 != null ? ' <strong>' + match.score1 + '</strong>' : '') + '</div>';
+                    html += '<div class="tr-bracket-vs">VS</div>';
+                    html += '<div class="tr-bracket-team' + (winner && winner === team2 ? ' is-winner' : '') + '" data-match-id="' + matchId + '" data-team-id="' + team2Id + '">' + team2 + (match.score2 != null ? ' <strong>' + match.score2 + '</strong>' : '') + '</div>';
+                    if (status === 'completed' && winner) {
+                        html += '<div class="tr-bracket-winner"><i class="fas fa-trophy"></i> ' + escapeHtml(winner) + '</div>';
+                    } else if (status === 'live') {
+                        html += '<div class="tr-bracket-live">Live</div>';
+                    }
+                    if (rpt === 'reported') html += '<div class="tr-bracket-live">Reported — awaiting confirmation</div>';
+                    else if (rpt === 'disputed') html += '<div class="tr-bracket-winner"><i class="fas fa-triangle-exclamation"></i> Disputed</div>';
+                    html += '</div>';
+                });
+                html += '</div></div>';
             });
             html += '</div></div>';
         });
-        html += '</div>';
         container.innerHTML = html;
         attachBracketTeamClick();
     }

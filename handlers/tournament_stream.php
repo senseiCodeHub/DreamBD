@@ -24,6 +24,8 @@ if (ob_get_level()) ob_end_clean();
 
 $lastMessageId = (int)($_GET['last_id'] ?? 0);
 $lastStatus = '';
+$lastBracketSig = '';
+$tick = 0;
 
 while (true) {
     if (connection_aborted()) break;
@@ -36,6 +38,25 @@ while (true) {
         echo "data: " . json_encode(['status' => $currentStatus]) . "\n\n";
         $lastStatus = $currentStatus;
         if (flush()) @ob_flush();
+    }
+
+    // Bracket change detection: match count + max(updated_at) + pending reports
+    $sig = '';
+    try {
+        $st = $db->query("SELECT COUNT(*) c, COALESCE(MAX(updated_at),'') m, COALESCE(MAX(report_state),'') r FROM tournament_matches WHERE tournament_id = " . (int)$tournamentId);
+        $row = $st->fetch();
+        $sig = ($row['c'] ?? '') . '|' . ($row['m'] ?? '') . '|' . ($row['r'] ?? '');
+    } catch (Throwable $e) { $sig = 'err'; }
+
+    if ($sig !== '' && $sig !== $lastBracketSig) {
+        if ($lastBracketSig !== '') {
+            // changed after initial load → push fresh bracket
+            $bracket = bracketMatchesForRender($db, $tournamentId);
+            echo "event: bracket\n";
+            echo "data: " . json_encode(['bracket' => $bracket, 'status' => $currentStatus]) . "\n\n";
+            if (flush()) @ob_flush();
+        }
+        $lastBracketSig = $sig;
     }
 
     $stmt = $db->prepare("SELECT * FROM tournament_chat_messages WHERE tournament_id = ? AND id > ? ORDER BY id ASC");
@@ -62,6 +83,13 @@ while (true) {
             echo "data: " . json_encode($richMessages) . "\n\n";
         }
     }
+
+    // Lazy deadline sweep inside the long-lived loop (ADR-005) + heartbeat
+    if ($tick % 15 === 0) {
+        try { enforceTournamentDeadlines($db, $tournamentId); } catch (Throwable $e) {}
+        echo ": heartbeat " . time() . "\n\n";
+    }
+    $tick++;
 
     if (ob_get_level()) @ob_flush();
     flush();
