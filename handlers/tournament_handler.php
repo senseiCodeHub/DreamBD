@@ -23,6 +23,8 @@ $action = $req['action'] ?? ($_GET['action'] ?? '');
 try {
     $db = Database::getInstance()->getConnection();
     enforceTournamentDeadlines($db);
+    // Lazy settle for expired player auctions — no cron (same pattern as deadlines).
+    try { settleExpiredAuctions($db); } catch (Throwable $e) {}
 
     switch ($action) {
         // ─── AGENT ACTIONS ───
@@ -187,6 +189,9 @@ try {
             $teamId = (int)($req['team_id'] ?? 0);
             $memberId = (int)($req['member_id'] ?? 0);
             if (!$teamId || !$memberId) { $response['message'] = 'Invalid request.'; break; }
+            $roleStmt = $db->prepare("SELECT role FROM team_members WHERE team_id = ? AND user_id = ?");
+            $roleStmt->execute([$teamId, $userId]);
+            if ($roleStmt->fetchColumn() !== 'captain') { $response['message'] = 'Only the team captain can add members.'; break; }
             $result = addTeamMember($db, $teamId, $memberId);
             $response = array_merge($response, $result);
             break;
@@ -195,6 +200,10 @@ try {
             if (!$userId) { $response['message'] = 'Please log in.'; break; }
             $teamId = (int)($req['team_id'] ?? 0);
             $memberId = (int)($req['member_id'] ?? 0);
+            if (!$teamId || !$memberId) { $response['message'] = 'Invalid request.'; break; }
+            $roleStmt = $db->prepare("SELECT role FROM team_members WHERE team_id = ? AND user_id = ?");
+            $roleStmt->execute([$teamId, $userId]);
+            if (!in_array($roleStmt->fetchColumn(), ['captain', 'co-captain'], true)) { $response['message'] = 'Only team leaders can remove members.'; break; }
             $result = removeTeamMember($db, $teamId, $memberId);
             $response = array_merge($response, $result);
             break;
@@ -760,6 +769,14 @@ try {
             break;
 
         // ─── PLAYER MARKET / AUCTION ───
+        case 'set_player_value':
+            if (!$userId) { $response['message'] = 'Please log in.'; break; }
+            $playerId = (int)($req['player_id'] ?? 0);
+            $value = (float)($req['market_value'] ?? 0);
+            if (!$playerId || $value < 0) { $response['message'] = 'Invalid parameters.'; break; }
+            $response = setPlayerMarketValue($db, $playerId, (int)$userId, $value);
+            break;
+
         case 'list_player_auction':
             if (!$userId) { $response['message'] = 'Please log in.'; break; }
             $playerId = (int)($req['player_id'] ?? 0);
@@ -814,6 +831,12 @@ try {
             $clubId = isset($req['club_id']) ? (int)$req['club_id'] : null;
             $limit = (int)($req['limit'] ?? 50);
             $response = ['success' => true, 'leaderboard' => getLeaderboard($db, $tournamentId, $clubId, $limit)];
+            break;
+
+        case 'get_my_players':
+            if (!$userId) { $response['message'] = 'Please log in.'; break; }
+            ensurePlayerProfile($db, (int) $userId);
+            $response = ['success' => true, 'players' => getMyPlayers($db, (int) $userId, 50)];
             break;
 
         case 'get_market_players':

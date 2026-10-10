@@ -196,15 +196,25 @@ function enforceTournamentDeadlines(PDO $pdo, ?int $tournamentId = null): array 
                     $row = $stmt->fetch();
                     if (!$row) { $pdo->commit(); continue; }
 
+                    // Refund strictly from escrow, and only credit the player + write the
+                    // ledger row once the escrow actually returned the money.
+                    $refunded = false;
                     if ($fee > 0 && $row['fee_paid']) {
-                        tnEscrowRefundFee($pdo, $t, (int) $ns['user_id'], $fee);
                         $title = mb_substr($t['title'] ?? '', 0, 150);
-                        $pdo->prepare("INSERT INTO transactions (user_id, type, amount, description, purpose) VALUES (?, 'refund', ?, ?, 'tournament_checkin')")
-                            ->execute([(int) $ns['user_id'], $fee, 'Check-in missed — entry fee refunded for "' . $title . '"']);
+                        if (tnEscrowRefundFee($pdo, $t, (int) $ns['user_id'], $fee)) {
+                            $balanceStmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
+                            $balanceStmt->execute([(int) $ns['user_id']]);
+                            $before = (float) $balanceStmt->fetchColumn();
+                            $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")
+                                ->execute([$before + $fee, (int) $ns['user_id']]);
+                            $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, purpose) VALUES (?, 'refund', ?, ?, ?, ?, 'tournament_checkin')")
+                                ->execute([(int) $ns['user_id'], $fee, $before, $before + $fee, 'Check-in missed — entry fee refunded for "' . $title . '"']);
+                            $refunded = true;
+                        }
                     }
                     $pdo->prepare("UPDATE tournament_participants SET status = 'cancelled' WHERE id = ?")->execute([(int) $ns['id']]);
                     createNotification($pdo, (int) $ns['user_id'], (int) ($t['agent_id'] ?? null) ?: null, 'refund',
-                        'You missed check-in for "' . ($t['title'] ?? 'Tournament') . '"' . ($fee > 0 && $row['fee_paid'] ? ' — entry fee refunded.' : '.'), $tid);
+                        'You missed check-in for "' . ($t['title'] ?? 'Tournament') . '"' . ($refunded ? ' — entry fee refunded.' : '.'), $tid);
                     $pdo->commit();
                     $actions['refunded']++;
                 } catch (Throwable $e) {

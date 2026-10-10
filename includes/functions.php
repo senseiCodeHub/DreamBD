@@ -1129,6 +1129,8 @@ function hydrateNotification(array &$notification): void {
         'report_received' => ['icon' => 'flag', 'label' => 'Report Received', 'accent' => 'is-system', 'color' => '#f59e0b'],
         'tournament_result' => ['icon' => 'medal', 'label' => 'Results', 'accent' => 'is-system', 'color' => '#10b981'],
         'refund' => ['icon' => 'rotate-left', 'label' => 'Refund', 'accent' => 'is-system', 'color' => '#059669'],
+        'transfer' => ['icon' => 'right-left', 'label' => 'Transfer', 'accent' => 'is-system', 'color' => '#0ea5e9'],
+        'auction' => ['icon' => 'gavel', 'label' => 'Auction', 'accent' => 'is-system', 'color' => '#f59e0b'],
     ];
     $type = $notification['type'] ?? 'system';
     $notification['meta'] = $metaMap[$type] ?? ['icon' => 'bell', 'label' => 'Update', 'accent' => 'is-system', 'color' => '#64748b'];
@@ -1174,6 +1176,8 @@ function hydrateNotification(array &$notification): void {
             'p2p_order_placed' => 'index.php?page=p2p',
             'p2p_payment_received' => 'index.php?page=p2p',
             'p2p_trade_completed' => 'index.php?page=p2p',
+            'transfer' => 'index.php?page=tournaments#hire',
+            'auction' => 'index.php?page=tournaments#hire',
         ];
         $notification['target_url'] = $urlMap[$type] ?? 'index.php?page=notifications';
     }
@@ -2647,6 +2651,9 @@ function joinTournamentWithTeam(PDO $pdo, int $teamId, int $tournamentId, int $u
         $stmt->execute([$tournamentId, $teamId]);
         if ($stmt->fetch()) return ['success' => false, 'message' => 'Team already registered.'];
 
+        // Everything below takes row locks and moves money — it must run in a transaction.
+        $pdo->beginTransaction();
+
         // Get tournament (lock row — closes capacity race)
         $stmt = $pdo->prepare("SELECT * FROM tournaments WHERE id = ? FOR UPDATE");
         $stmt->execute([$tournamentId]);
@@ -2987,14 +2994,30 @@ function buyPlayerDirect(PDO $pdo, int $playerId, int $buyerId, float $price): a
         if ($balance < $price)
             { $pdo->rollBack(); return ['success' => false, 'message' => 'Insufficient balance.']; }
 
-        // Deduct from buyer, credit to seller (if any) or system
-        $prevOwnerId = $player['owner_id'];
-        $stmt = $pdo->prepare("UPDATE users SET balance = balance - ? WHERE id = ?");
-        $stmt->execute([$price, $buyerId]);
+        // Deduct from buyer, credit to seller (if any) — both movements are ledgered.
+        $prevOwnerId = !empty($player['owner_id']) ? (int) $player['owner_id'] : null;
+        $nameStmt = $pdo->prepare("SELECT COALESCE(full_name, username) FROM users WHERE id = ?");
+        $nameStmt->execute([(int) $player['user_id']]);
+        $playerName = (string) ($nameStmt->fetchColumn() ?: ('Player #' . $playerId));
+        $priceLabel = '৳' . number_format($price, 2);
+
+        $buyerAfter = $balance - $price;
+        $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")->execute([$buyerAfter, $buyerId]);
+        $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, reference_id, purpose) VALUES (?, 'player_purchase', ?, ?, ?, ?, ?, 'player_purchase')")
+            ->execute([$buyerId, $price, $balance, $buyerAfter, 'Signed ' . $playerName . ' for ' . $priceLabel, $playerId]);
+
         if ($prevOwnerId) {
-            $stmt = $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
-            $stmt->execute([$price, $prevOwnerId]);
+            $ownerStmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
+            $ownerStmt->execute([$prevOwnerId]);
+            $ownerBefore = (float) $ownerStmt->fetchColumn();
+            $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")->execute([$ownerBefore + $price, $prevOwnerId]);
+            $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, reference_id, purpose) VALUES (?, 'player_sale', ?, ?, ?, ?, ?, 'player_purchase')")
+                ->execute([$prevOwnerId, $price, $ownerBefore, $ownerBefore + $price, 'Sold ' . $playerName . ' for ' . $priceLabel, $playerId]);
+            createNotification($pdo, $prevOwnerId, $buyerId, 'transfer',
+                'Your player ' . $playerName . ' was signed for ' . $priceLabel . '.', $playerId);
         }
+        createNotification($pdo, $buyerId, $prevOwnerId ?: null, 'transfer',
+            'You signed ' . $playerName . ' for ' . $priceLabel . '.', $playerId);
 
         $stmt = $pdo->prepare("UPDATE players SET owner_id = ?, current_club_id = NULL, status = 'active' WHERE id = ?");
         $stmt->execute([$buyerId, $playerId]);
@@ -3146,6 +3169,63 @@ function getMarketPlayers(PDO $pdo, string $status = 'free_agent', ?int $clubId 
     return $stmt->fetchAll();
 }
 
+/**
+ * Ensure the user has a player card in the market. Everybody is a free agent
+ * until someone signs them — without a row a user can never be traded.
+ */
+function ensurePlayerProfile(PDO $pdo, int $userId): int {
+    if ($userId <= 0) return 0;
+    try {
+        $stmt = $pdo->prepare("SELECT id FROM players WHERE user_id = ?");
+        $stmt->execute([$userId]);
+        $existing = (int) $stmt->fetchColumn();
+        if ($existing > 0) return $existing;
+
+        $pdo->prepare("INSERT INTO players (user_id, owner_id, status, market_value, base_price, rating) VALUES (?, NULL, 'free_agent', 0, 0, 0)")
+            ->execute([$userId]);
+        return (int) $pdo->lastInsertId();
+    } catch (Throwable $e) {
+        return 0;
+    }
+}
+
+/** Players the user currently owns (bought at auction or direct) — the squad they manage. */
+function getMyPlayers(PDO $pdo, int $ownerId, int $limit = 50): array {
+    $stmt = $pdo->prepare("SELECT p.*, u.username, u.full_name, u.avatar, u.nickname, c.name AS club_name, c.tag AS club_tag, c.colour AS club_colour,
+        COALESCE((SELECT COUNT(*) FROM player_auctions WHERE player_id = p.id AND status = 'active'), 0) AS has_active_auction,
+        COALESCE((SELECT current_price FROM player_auctions WHERE player_id = p.id AND status = 'active' ORDER BY start_time DESC LIMIT 1), p.market_value) AS display_price
+        FROM players p
+        JOIN users u ON u.id = p.user_id
+        LEFT JOIN clubs c ON c.id = p.current_club_id
+        WHERE p.owner_id = ? ORDER BY p.market_value DESC, p.id DESC LIMIT ?");
+    $stmt->execute([$ownerId, $limit]);
+    return $stmt->fetchAll();
+}
+
+/**
+ * Set the asking price shown in the free-agent market. The player themself or
+ * their current owner can set it — this is what buyers pay via buy_player.
+ */
+function setPlayerMarketValue(PDO $pdo, int $playerId, int $userId, float $value): array {
+    $value = max(0.0, min(10000000.0, round($value, 2)));
+
+    $stmt = $pdo->prepare("SELECT user_id, owner_id FROM players WHERE id = ?");
+    $stmt->execute([$playerId]);
+    $player = $stmt->fetch();
+    if (!$player) return ['success' => false, 'message' => 'Player not found.'];
+
+    $isSelf = (int) $player['user_id'] === $userId;
+    $isOwner = !empty($player['owner_id']) && (int) $player['owner_id'] === $userId;
+    if (!$isSelf && !$isOwner) return ['success' => false, 'message' => 'You cannot price this player.'];
+
+    try {
+        $pdo->prepare("UPDATE players SET market_value = ? WHERE id = ?")->execute([$value, $playerId]);
+        return ['success' => true, 'message' => 'Market value set to ৳' . number_format($value, 0) . '.'];
+    } catch (Throwable $e) {
+        return ['success' => false, 'message' => 'Could not update the market value.'];
+    }
+}
+
 function getClubStandings(PDO $pdo): array {
     $stmt = $pdo->prepare("SELECT c.*,
         (SELECT COUNT(*) FROM club_members WHERE club_id = c.id) AS member_count,
@@ -3156,7 +3236,7 @@ function getClubStandings(PDO $pdo): array {
 }
 
 function getActiveAuctions(PDO $pdo, int $limit = 30): array {
-    $stmt = $pdo->prepare("SELECT pa.*, u.username AS seller_name, p2.username AS player_name, p2.full_name AS player_full, p2.avatar AS player_avatar,
+    $stmt = $pdo->prepare("SELECT pa.*, p.user_id AS player_user_id, u.username AS seller_name, p2.username AS player_name, p2.full_name AS player_full, p2.avatar AS player_avatar,
         (SELECT COUNT(*) FROM auction_bids WHERE auction_id = pa.id) AS total_bids,
         COALESCE((SELECT MAX(amount) FROM auction_bids WHERE auction_id = pa.id), pa.base_price) AS highest_bid
         FROM player_auctions pa
@@ -3183,23 +3263,60 @@ function settleExpiredAuctions(PDO $pdo): int {
                 $topBid = $bidStmt->fetch();
 
                 if ($topBid) {
-                    $stmt = $pdo->prepare("UPDATE player_auctions SET status = 'completed', winner_id = ?, final_price = ? WHERE id = ?");
-                    $stmt->execute([$topBid['bidder_id'], $topBid['amount'], $auction['id']]);
+                    $amount = (float) $topBid['amount'];
+                    $winnerId = (int) $topBid['bidder_id'];
+                    $sellerId = (int) $auction['seller_id'];
+                    $playerRefId = (int) $auction['player_id'];
 
-                    // Deduct from winner
-                    $stmt = $pdo->prepare("UPDATE users SET balance = balance - ? WHERE id = ? AND balance >= ?");
-                    $stmt->execute([$topBid['amount'], $topBid['bidder_id'], $topBid['amount']]);
+                    $nameStmt = $pdo->prepare("SELECT COALESCE(u.full_name, u.username) FROM players p JOIN users u ON u.id = p.user_id WHERE p.id = ?");
+                    $nameStmt->execute([$playerRefId]);
+                    $playerName = (string) ($nameStmt->fetchColumn() ?: ('Player #' . $playerRefId));
+                    $amountLabel = '৳' . number_format($amount, 2);
 
-                    // Credit seller
-                    $stmt = $pdo->prepare("UPDATE users SET balance = balance + ? WHERE id = ?");
-                    $stmt->execute([$topBid['amount'] * 0.95, $auction['seller_id']]); // 5% platform fee
+                    // The winning bidder must still be able to pay — verify before moving money.
+                    $balStmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
+                    $balStmt->execute([$winnerId]);
+                    $winnerBefore = (float) $balStmt->fetchColumn();
 
-                    // Update player ownership
-                    $stmt = $pdo->prepare("UPDATE players SET owner_id = ?, status = 'active' WHERE id = ?");
-                    $stmt->execute([$topBid['bidder_id'], $auction['player_id']]);
+                    if ($winnerBefore < $amount) {
+                        $stmt = $pdo->prepare("UPDATE player_auctions SET status = 'cancelled' WHERE id = ? AND status = 'active'");
+                        $stmt->execute([$auction['id']]);
+                        createNotification($pdo, $sellerId, $winnerId, 'auction',
+                            'Auction for ' . $playerName . ' was cancelled — the top bidder could not pay.', $playerRefId);
+                    } else {
+                        // Claim the auction atomically so a concurrent sweep cannot settle it twice.
+                        $claim = $pdo->prepare("UPDATE player_auctions SET status = 'completed', winner_id = ?, final_price = ? WHERE id = ? AND status = 'active'");
+                        $claim->execute([$winnerId, $amount, $auction['id']]);
+                        if ($claim->rowCount() === 0) { $pdo->rollBack(); continue; }
 
-                    $stmt = $pdo->prepare("INSERT INTO player_transfers (player_id, from_owner_id, to_owner_id, amount, type) VALUES (?, ?, ?, ?, 'auction')");
-                    $stmt->execute([$auction['player_id'], $auction['seller_id'], $topBid['bidder_id'], $topBid['amount']]);
+                        $sellerCut = round($amount * 0.95, 2); // 5% platform fee
+                        $platformFee = round($amount - $sellerCut, 2);
+
+                        $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")->execute([$winnerBefore - $amount, $winnerId]);
+                        $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, reference_id, purpose) VALUES (?, 'player_purchase', ?, ?, ?, ?, ?, 'player_auction')")
+                            ->execute([$winnerId, $amount, $winnerBefore, $winnerBefore - $amount,
+                                'Won auction for ' . $playerName . ' at ' . $amountLabel, $playerRefId]);
+
+                        $sellerStmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
+                        $sellerStmt->execute([$sellerId]);
+                        $sellerBefore = (float) $sellerStmt->fetchColumn();
+                        $pdo->prepare("UPDATE users SET balance = ? WHERE id = ?")->execute([$sellerBefore + $sellerCut, $sellerId]);
+                        $pdo->prepare("INSERT INTO transactions (user_id, type, amount, balance_before, balance_after, description, reference_id, purpose) VALUES (?, 'player_sale', ?, ?, ?, ?, ?, 'player_auction')")
+                            ->execute([$sellerId, $sellerCut, $sellerBefore, $sellerBefore + $sellerCut,
+                                'Sold ' . $playerName . ' at auction for ' . $amountLabel . ' (platform fee ৳' . number_format($platformFee, 2) . ')', $playerRefId]);
+
+                        // Update player ownership
+                        $stmt = $pdo->prepare("UPDATE players SET owner_id = ?, status = 'active', base_price = 0 WHERE id = ?");
+                        $stmt->execute([$winnerId, $playerRefId]);
+
+                        $stmt = $pdo->prepare("INSERT INTO player_transfers (player_id, from_owner_id, to_owner_id, amount, type) VALUES (?, ?, ?, ?, 'auction')");
+                        $stmt->execute([$playerRefId, $sellerId, $winnerId, $amount]);
+
+                        createNotification($pdo, $winnerId, $sellerId, 'auction',
+                            'You won the auction for ' . $playerName . ' at ' . $amountLabel . '.', $playerRefId);
+                        createNotification($pdo, $sellerId, $winnerId, 'auction',
+                            $playerName . ' sold at auction for ' . $amountLabel . ' — ৳' . number_format($sellerCut, 2) . ' credited.', $playerRefId);
+                    }
                 } else {
                     $stmt = $pdo->prepare("UPDATE player_auctions SET status = 'cancelled' WHERE id = ?");
                     $stmt->execute([$auction['id']]);

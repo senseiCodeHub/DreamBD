@@ -658,12 +658,20 @@ function ensureClubFeatureSchema(PDO $db): void {
         try { $db->exec($sql); } catch (Throwable $e) {}
     }
 
-    // Ensure default player records for existing users
+    // Ensure default player records for existing users.
+    // One-time backfill: every active account gets a player card, otherwise the
+    // market/auction/hire flows have nothing to sell. New accounts are covered
+    // lazily by ensurePlayerProfile().
     try {
-        $stmt = $db->query("SELECT COUNT(*) FROM players");
-        $playerCount = (int) $stmt->fetchColumn();
-        if ($playerCount === 0) {
-            $db->exec("INSERT IGNORE INTO players (user_id, status) SELECT id, 'free_agent' FROM users");
+        $seeded = false;
+        $stmt = $db->query("SELECT `value` FROM site_settings WHERE `key` = 'player_market_seeded'");
+        if ($stmt && $stmt->fetch()) $seeded = true;
+
+        if (!$seeded) {
+            $db->exec("INSERT IGNORE INTO players (user_id, status) SELECT id, 'free_agent' FROM users WHERE status = 'active'");
+            // A player with an owner is never on the free-agent list.
+            $db->exec("UPDATE players SET status = 'active' WHERE owner_id IS NOT NULL AND status = 'free_agent'");
+            $db->exec("INSERT IGNORE INTO site_settings (`key`, `value`) VALUES ('player_market_seeded', '1')");
         }
     } catch (Throwable $e) {}
 }

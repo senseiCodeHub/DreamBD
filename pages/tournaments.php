@@ -43,7 +43,22 @@ if ($clubId) {
 }
 
 // Player Market data
-$players = getMarketPlayers($db, 'free_agent');
+// Expired auctions settle lazily on page load (no cron — same pattern as tournament deadlines).
+try { settleExpiredAuctions($db); } catch (Throwable $e) {}
+$myPlayers = [];
+$managerClubs = [];
+if ($viewerId) {
+    try { ensurePlayerProfile($db, (int) $viewerId); } catch (Throwable $e) {}
+    try { $myPlayers = getMyPlayers($db, (int) $viewerId); } catch (Throwable $e) {}
+    foreach ($myClubs as $c) {
+        if (in_array(($c['my_role'] ?? ''), ['owner', 'manager'], true)) { $managerClubs[] = $c; }
+    }
+}
+$players = [];
+foreach (getMarketPlayers($db, 'free_agent') as $p) {
+    if ($viewerId && (int) $p['user_id'] === (int) $viewerId) continue; // manage your own card in "My Players"
+    $players[] = $p;
+}
 $auctions = getActiveAuctions($db);
 $playerDetail = null;
 $detailUserId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0;
@@ -104,37 +119,48 @@ if ($viewerId) {
 .gp-page { max-width:900px; margin:0 auto; padding:0 12px 2rem }
 
 /* ═══ HERO ═══ */
-.gp-hero { position:relative; padding:28px 24px 0; border-radius:0 0 32px 32px; min-height:auto; overflow:hidden }
-.gp-hero-bg { position:absolute; inset:0; z-index:0; background:linear-gradient(135deg,#0f172a,#1e1b4b,#1a0533); min-height:360px; border-radius:0 0 32px 32px }
-.gp-hero-bg::before { content:''; position:absolute; top:-120px; right:-120px; width:320px; height:320px; border-radius:50%; background:radial-gradient(circle,rgba(139,92,246,.18),transparent 70%) }
-.gp-hero-bg::after { content:''; position:absolute; bottom:-80px; left:-80px; width:240px; height:240px; border-radius:50%; background:radial-gradient(circle,rgba(5,150,105,.1),transparent 70%) }
-.gp-hero-content { position:relative; z-index:1; text-align:center; padding:10px 0 4px }
-.gp-hero-badge { display:inline-flex; align-items:center; gap:6px; padding:6px 16px; border-radius:999px; background:rgba(139,92,246,.15); color:#a78bfa; font-size:.72rem; font-weight:700; letter-spacing:.3px; margin-bottom:14px; border:1px solid rgba(139,92,246,.2) }
-.gp-hero-content h1 { font-size:clamp(30px,5vw,54px); font-weight:900; color:#fff; letter-spacing:-.035em; line-height:1.06; margin:0 0 10px; text-wrap:balance }
-.gp-hero-content p { font-size:.9rem; color:#94a3b8; margin:0 0 18px }
- .hero-em { color:#c084fc }
-.gp-hero-stage{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.55}
+.gp-hero { position:relative; margin:1.5rem 0 26px; padding:44px 24px 30px; border-radius:24px; min-height:0; overflow:hidden; border:0; isolation:isolate; text-align:center; color:#fff; background:linear-gradient(135deg,#0f172a,#1e1b4b,#1a0533); box-shadow:0 20px 50px rgba(15,23,42,.28) }
+.gp-hero::before { content:none; animation:none }
+.gp-hero-bg { position:absolute; inset:0; z-index:0; border-radius:inherit; pointer-events:none }
+.gp-hero-bg::before { content:''; position:absolute; top:-130px; right:-90px; width:340px; height:340px; border-radius:50%; background:radial-gradient(circle,rgba(139,92,246,.35),transparent 65%); filter:blur(10px) }
+.gp-hero-bg::after { content:''; position:absolute; bottom:-110px; left:-80px; width:280px; height:280px; border-radius:50%; background:radial-gradient(circle,rgba(6,182,212,.28),transparent 65%); filter:blur(10px) }
+.gp-hero-content { position:relative; z-index:1; max-width:780px; margin:0 auto; padding:0; text-align:center; animation:gpHeroRise .7s cubic-bezier(.22,1,.36,1) both }
+.gp-hero-badge { display:inline-flex; align-items:center; gap:8px; padding:6px 15px; border-radius:999px; background:rgba(139,92,246,.18); border:1px solid rgba(167,139,250,.32); color:#c4b5fd; font-size:.72rem; font-weight:700; letter-spacing:.4px }
+.gp-hero-content h1 { margin:16px 0 10px; color:#fff; font-size:clamp(1.7rem,4vw,2.5rem); font-weight:900; letter-spacing:-.03em; line-height:1.12; text-wrap:balance }
+.gp-hero-content p { margin:0 auto; max-width:560px; color:#cbd5e1; font-size:.95rem; line-height:1.6 }
+ .hero-em { background:linear-gradient(90deg,#a78bfa,#22d3ee); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; color:transparent }
+.gp-hero-kicker { display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap }
+.gp-hero-live { display:inline-flex; align-items:center; gap:7px; padding:6px 14px; border-radius:999px; background:rgba(5,150,105,.16); border:1px solid rgba(16,185,129,.3); color:#6ee7b7; font-size:.72rem; font-weight:800; letter-spacing:.3px }
+.gp-hero-live-dot { width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 0 3px rgba(52,211,153,.25); animation:gpHeroLive 1.8s ease-out infinite }
+@keyframes gpHeroLive { 0%{box-shadow:0 0 0 0 rgba(52,211,153,.55)} 70%{box-shadow:0 0 0 7px rgba(52,211,153,0)} 100%{box-shadow:0 0 0 0 rgba(52,211,153,0)} }
+@keyframes gpHeroRise { from{opacity:0; transform:translateY(16px)} to{opacity:1; transform:translateY(0)} }
+@media (prefers-reduced-motion:reduce){ .gp-hero-content{animation:none} .gp-hero-live-dot{animation:none} }
+.gp-hero-actions { display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-top:22px }
+.gp-hero-cta { display:inline-flex; align-items:center; gap:8px; padding:11px 22px; border-radius:12px; font-size:.88rem; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; color:#fff; background:linear-gradient(135deg,#8b5cf6,#7c3aed); box-shadow:0 6px 18px rgba(139,92,246,.35); border:0; cursor:pointer; text-decoration:none; transition:transform .2s,box-shadow .2s }
+.gp-hero-cta:hover { transform:translateY(-2px); box-shadow:0 10px 24px rgba(139,92,246,.45) }
+.gp-hero-ghost { display:inline-flex; align-items:center; gap:8px; padding:11px 22px; border-radius:12px; font-size:.88rem; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; color:#e2e8f0; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.18); cursor:pointer; text-decoration:none; transition:transform .2s,background .2s,border-color .2s }
+.gp-hero-ghost:hover { background:rgba(255,255,255,.14); border-color:rgba(255,255,255,.3) }
+.gp-hero-stage{position:absolute;inset:0;z-index:0;pointer-events:none;opacity:.16}
 .gp-hero-stage svg{width:100%;height:100%;display:block}
 .gp-hero-bracket path{stroke-dasharray:1;animation:brDraw .95s cubic-bezier(.22,1,.36,1) .1s both}
 .gp-hero-bracket circle{transform-box:fill-box;transform-origin:center;animation:brPop .5s cubic-bezier(.22,1,.36,1) .5s both}
 .gp-hero-bracket circle:last-child{animation-delay:.78s}
 @keyframes brDraw{from{stroke-dashoffset:1}to{stroke-dashoffset:0}}
 @keyframes brPop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
-@keyframes gpStripSweep{to{transform:translateX(480%) skewX(-16deg)}}
-.gp-hero-stats::after{content:'';position:absolute;top:-20%;bottom:-20%;left:0;width:32%;background:linear-gradient(100deg,transparent,rgba(255,255,255,.13) 45%,rgba(255,255,255,.13) 55%,transparent);transform:translateX(-170%) skewX(-16deg);animation:gpStripSweep .95s cubic-bezier(.22,1,.36,1) .55s 1 both;pointer-events:none}
 @keyframes stageDrift{from{transform:translateY(0)}to{transform:translateY(7%)}}
 @supports (animation-timeline:scroll()){.gp-hero-stage{animation:stageDrift linear both;animation-timeline:scroll(root);animation-range:0 600px}}
-@media (prefers-reduced-motion:reduce){.gp-hero-bracket path,.gp-hero-bracket circle,.gp-hero-stats::after{animation:none}.gp-hero-stage{animation:none}}
-.gp-hero-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:0; margin:20px 0 8px; position:relative; z-index:1; background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.11); border-radius:16px; backdrop-filter:blur(8px); overflow:hidden }
-.gp-stat-card { display:grid; grid-template-columns:auto 1fr; grid-template-rows:auto auto; column-gap:12px; align-items:center; justify-items:start; padding:16px; text-align:left; border-left:1px solid rgba(255,255,255,.09); min-width:0 }
-.gp-stat-card:first-child { border-left:0 }
-.gp-stat-icon { grid-row:1 / span 2; grid-column:1; font-size:15px; width:34px; height:34px; display:flex; align-items:center; justify-content:center; border-radius:10px; margin:0 }
-.gp-stat-card:nth-child(1) .gp-stat-icon { background:linear-gradient(135deg,#5b21b6,#7c3aed); color:#fff; box-shadow:0 6px 20px rgba(91,33,182,.35) }
-.gp-stat-card:nth-child(2) .gp-stat-icon { background:linear-gradient(135deg,#d97706,#f59e0b); color:#fff; box-shadow:0 6px 20px rgba(217,119,6,.35) }
-.gp-stat-card:nth-child(3) .gp-stat-icon { background:linear-gradient(135deg,#dc2626,#ef4444); color:#fff; box-shadow:0 6px 20px rgba(220,38,38,.35) }
-.gp-stat-card:nth-child(4) .gp-stat-icon { background:linear-gradient(135deg,#059669,#10b981); color:#fff; box-shadow:0 6px 20px rgba(5,150,105,.35) }
-.gp-stat-value { grid-column:2; grid-row:1; font-size:clamp(1.1rem,1.5vw,1.45rem); font-weight:900; line-height:1.15; color:#fff; display:block; font-variant-numeric:tabular-nums }
-.gp-stat-label { grid-column:2; grid-row:2; font-size:.62rem; text-transform:uppercase; letter-spacing:.07em; color:rgba(255,255,255,.55); font-weight:700; display:block; margin-top:1px }
+@media (prefers-reduced-motion:reduce){.gp-hero-bracket path,.gp-hero-bracket circle{animation:none}.gp-hero-stage{animation:none}}
+.gp-hero-stats { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin:30px 0 0; position:relative; z-index:1; background:none; border:0; overflow:visible }
+.gp-stat-card { display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:16px 10px 14px; border-radius:16px; background:rgba(255,255,255,.92); backdrop-filter:blur(14px); border:1px solid rgba(255,255,255,.5); box-shadow:0 4px 20px rgba(0,0,0,.12); color:var(--gp-text); text-align:center; min-width:0; transition:transform .25s cubic-bezier(.34,1.56,.64,1),box-shadow .25s }
+.gp-stat-card:hover { transform:translateY(-3px); box-shadow:0 10px 26px rgba(0,0,0,.18) }
+.dark .gp-stat-card, [data-theme="dark"] .gp-stat-card { background:rgba(30,41,59,.92); border-color:rgba(148,163,184,.2) }
+.gp-stat-card .gp-stat-icon { grid-row:auto; grid-column:auto; width:42px; height:42px; border-radius:13px; font-size:1rem; display:flex; align-items:center; justify-content:center; margin:0 0 5px; opacity:1 }
+.gp-stat-card:nth-child(1) .gp-stat-icon { background:rgba(139,92,246,.16); color:#7c3aed }
+.gp-stat-card:nth-child(2) .gp-stat-icon { background:rgba(245,158,11,.18); color:#d97706 }
+.gp-stat-card:nth-child(3) .gp-stat-icon { background:rgba(239,68,68,.16); color:#dc2626 }
+.gp-stat-card:nth-child(4) .gp-stat-icon { background:rgba(5,150,105,.16); color:#059669 }
+.gp-stat-value { grid-column:auto; grid-row:auto; font-size:1.15rem; font-weight:900; letter-spacing:-.02em; line-height:1.2; color:var(--gp-text); display:block; font-variant-numeric:tabular-nums }
+.gp-stat-label { grid-column:auto; grid-row:auto; font-size:.68rem; font-weight:700; text-transform:uppercase; letter-spacing:.5px; color:var(--gp-muted); display:block; margin-top:0 }
 
 /* ═══ PROFILE BAR ═══ */
 .gp-profile-bar { display:flex; align-items:center; gap:14px; padding:14px 20px; margin:0 0 18px; border-radius:20px; background:var(--gp-card); border:1px solid var(--gp-border); box-shadow:var(--gp-shadow) }
@@ -146,6 +172,19 @@ if ($viewerId) {
 .gp-balance-label { font-size:10px; color:var(--gp-muted) }
 .gp-balance-value { font-size:15px; font-weight:800; color:var(--gp-green) }
 .gp-profile-bar-actions { display:flex; align-items:center; gap:6px }
+
+/* ═══ DESKTOP SECTION NAV ═══ */
+.gp-desktop-nav { display:flex; align-items:center; gap:6px; margin:0 0 18px; padding:6px; background:var(--gp-card); border:1px solid var(--gp-border); border-radius:18px; box-shadow:var(--gp-shadow); overflow-x:auto; scrollbar-width:none }
+.gp-desktop-nav::-webkit-scrollbar { display:none }
+.gp-desktop-nav-item { display:inline-flex; align-items:center; gap:8px; padding:10px 18px; border-radius:12px; border:0; background:transparent; color:var(--gp-muted); font-weight:700; font-size:.82rem; cursor:pointer; font-family:'Plus Jakarta Sans',sans-serif; white-space:nowrap; transition:all .2s }
+.gp-desktop-nav-item i { font-size:.9rem }
+.gp-desktop-nav-item:hover { background:rgba(139,92,246,.07); color:var(--gp-accent) }
+.gp-desktop-nav-item.active { background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; box-shadow:0 6px 16px rgba(139,92,246,.28) }
+.gp-desktop-nav-item:focus-visible { outline:2px solid var(--gp-accent); outline-offset:2px }
+.gp-desktop-nav-spacer { flex:1 }
+.gp-desktop-nav-cta { display:inline-flex; align-items:center; gap:7px; padding:10px 16px; border-radius:12px; border:0; cursor:pointer; font-weight:800; font-size:.8rem; font-family:'Plus Jakarta Sans',sans-serif; color:#fff; background:linear-gradient(135deg,#8b5cf6,#7c3aed); box-shadow:0 6px 16px rgba(139,92,246,.28); white-space:nowrap; text-decoration:none; transition:all .2s }
+.gp-desktop-nav-cta:hover { transform:translateY(-2px); box-shadow:0 10px 22px rgba(139,92,246,.4) }
+@media (max-width:768px) { .gp-desktop-nav { display:none } }
 
 /* ═══ MOBILE BOTTOM NAV — PREMIUM ═══ */
 .gp-mobile-nav { position:fixed; bottom:0; left:0; right:0; z-index:9999; display:none; padding:0 0 env(safe-area-inset-bottom,0); background:linear-gradient(180deg,var(--gp-bg) 0%,var(--gp-card) 100%); border-top:1px solid var(--gp-border); box-shadow:0 -8px 32px rgba(0,0,0,.06) }
@@ -178,7 +217,7 @@ if ($viewerId) {
 .gp-section { padding:16px 8px }
 .gp-section-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:0 12px 16px; flex-wrap:wrap }
 .gp-section-header h2 { font-size:1.15rem; font-weight:800; display:flex; align-items:center; gap:8px; color:var(--gp-text); flex-shrink:0; letter-spacing:-.02em }
-.gp-section-header h2 i { font-size:1rem; color:var(--gp-accent) }
+.gp-section-header h2 i { font-size:.9rem; color:var(--gp-accent); width:30px; height:30px; display:inline-flex; align-items:center; justify-content:center; border-radius:9px; background:rgba(139,92,246,.1) }
 
 /* ═══ TABS ═══ */
 .gp-tabs { display:flex; gap:4px; flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; scrollbar-width:none }
@@ -188,9 +227,9 @@ if ($viewerId) {
 .gp-tab.active { background:rgba(139,92,246,.1); color:var(--gp-accent); border-color:rgba(139,92,246,.2); box-shadow:0 2px 8px rgba(139,92,246,.1) }
 
 /* ═══ SEARCH ═══ */
-.gp-search { position:relative; width:260px; flex-shrink:0; border-radius:12px; border:2px solid var(--gp-border); background:var(--gp-card); transition:border-color .2s,box-shadow .2s }
+.gp-search { position:relative; width:240px; flex-shrink:0; border-radius:12px; border:2px solid var(--gp-border); background:var(--gp-card); transition:border-color .2s,box-shadow .2s }
 .gp-search:focus-within { border-color:var(--gp-accent); box-shadow:0 0 0 4px rgba(139,92,246,.1) }
-.gp-search-icon { position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:14px; color:var(--gp-muted); pointer-events:none; transition:color .2s }
+.gp-search .gp-search-icon { position:absolute; left:13px; top:50%; transform:translateY(-50%); font-size:14px; color:var(--gp-muted); pointer-events:none; transition:color .2s }
 .gp-search:focus-within .gp-search-icon { color:var(--gp-accent) }
 .gp-search-input { width:100%; padding:10px 42px 10px 40px; border:0; border-radius:12px; font:inherit; font-size:.78rem; background:transparent; color:var(--gp-text); box-sizing:border-box; outline:none; font-family:'Plus Jakarta Sans',sans-serif }
 .gp-search-input::placeholder { color:var(--gp-muted) }
@@ -199,13 +238,16 @@ if ($viewerId) {
 
 /* ═══ CARD GRID ═══ */
 .gp-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:14px; padding:0 8px }
-.gp-card { background:var(--gp-card); border-radius:18px; padding:0; transition:all .3s ease; position:relative; overflow:hidden; border:1px solid var(--gp-border); box-shadow:0 1px 4px rgba(0,0,0,.02); display:flex; flex-direction:column; height:100% }
-.gp-card:hover { transform:translateY(-2px); box-shadow:0 8px 24px rgba(139,92,246,.06); border-color:rgba(139,92,246,.12) }
+.gp-card { background:var(--gp-card); border-radius:20px; padding:0; transition:transform .28s cubic-bezier(.22,1,.36,1),box-shadow .28s ease,border-color .28s ease; position:relative; overflow:hidden; border:1px solid var(--gp-border); box-shadow:0 1px 3px rgba(15,23,42,.04); display:flex; flex-direction:column; height:100%; animation:none }
+.gp-card:hover { transform:translateY(-4px); box-shadow:0 14px 34px rgba(15,23,42,.1); border-color:rgba(139,92,246,.24) }
+.gp-card:focus-within { border-color:rgba(139,92,246,.4); box-shadow:0 0 0 4px rgba(139,92,246,.12) }
 .gp-card-accent { height:3px; flex-shrink:0 }
 .gp-card-head { display:flex; align-items:center; gap:10px; padding:14px 16px 0 }
-.gp-card-icon { width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0 }
+.gp-card-icon { width:38px; height:38px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:17px; flex-shrink:0; box-shadow:inset 0 0 0 1px rgba(255,255,255,.18), 0 6px 16px rgba(0,0,0,.14) }
 .gp-badge { font-size:.6rem; font-weight:700; padding:3px 10px; border-radius:999px; letter-spacing:.3px; display:inline-flex; align-items:center; gap:4px }
 .badge-live { background:rgba(5,150,105,.12); color:#059669 }
+.badge-live::before { content:''; width:6px; height:6px; border-radius:50%; background:currentColor; animation:gpLivePulse 2s ease-out infinite }
+@keyframes gpLivePulse { 0%{box-shadow:0 0 0 0 rgba(5,150,105,.45)} 70%{box-shadow:0 0 0 6px rgba(5,150,105,0)} 100%{box-shadow:0 0 0 0 rgba(5,150,105,0)} }
 .badge-upcoming { background:rgba(59,130,246,.12); color:#3b82f6 }
 .badge-ongoing { background:rgba(251,191,36,.12); color:#d97706 }
 .badge-completed { background:rgba(139,92,246,.12); color:#7c3aed }
@@ -221,16 +263,24 @@ if ($viewerId) {
 .gp-card-host { font-size:.68rem; color:var(--gp-muted); display:inline-flex; align-items:center; gap:4px }
 .gp-card-body p { font-size:.75rem; color:var(--gp-muted); margin:4px 0 0; line-height:1.4 }
 .gp-card-body p:empty, .gp-card-body p.no-desc { min-height:0 }
-.gp-card-meta { display:grid; grid-template-columns:1fr 1fr; gap:4px 10px; padding:4px 16px 10px; font-size:.73rem; color:var(--gp-muted) }
+.gp-card-meta { display:grid; grid-template-columns:1fr 1fr; gap:6px 10px; padding:6px 16px 12px; font-size:.73rem; color:var(--gp-muted) }
 .gp-card-meta > div { display:flex; align-items:center; gap:5px }
-.gp-card-meta i { font-size:.6rem; width:13px; text-align:center; opacity:.7 }
-.gp-countdown { font-size:.65rem; font-weight:700; color:var(--gp-accent); margin-left:auto }
+.gp-card-meta i { font-size:.6rem; width:13px; text-align:center; opacity:.85 }
+.gp-countdown { font-size:.65rem; font-weight:700; color:var(--gp-accent); margin-left:auto; padding:2px 8px; border-radius:999px; background:rgba(139,92,246,.1); font-variant-numeric:tabular-nums }
 .gp-card-actions { display:flex; align-items:center; gap:6px; flex-wrap:wrap; border-top:1px solid var(--gp-border); margin:0 16px 0; padding:10px 0 14px }
 .gp-card > .gp-card-actions { margin-top:auto }
+.gp-card-tags { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:2px 0 0 }
+.gp-card-prize { margin-left:auto; font-size:.72rem; font-weight:800; color:#d97706; display:inline-flex; align-items:center; gap:4px; padding:4px 11px; border-radius:999px; background:rgba(245,158,11,.1); border:1px solid rgba(245,158,11,.18); white-space:nowrap }
+.gp-card-prize i { font-size:.6rem }
+.gp-card-progress { grid-column:1 / -1; display:flex; align-items:center; gap:8px; margin-top:4px }
+.gp-card-progress-track { flex:1; height:5px; border-radius:999px; background:var(--gp-border); overflow:hidden }
+.gp-card-progress-fill { display:block; height:100%; border-radius:999px; background:linear-gradient(90deg,#7c3aed,#a78bfa); transition:width .4s ease }
+.gp-card-lock { grid-column:1 / -1; display:inline-flex; align-items:center; gap:5px; font-size:.65rem; font-weight:700; padding:3px 9px; border-radius:999px; background:rgba(124,58,237,.1); width:fit-content; margin-top:2px }
 
 /* ═══ BUTTONS (P2P style) ═══ */
 .gp-btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; border:0; cursor:pointer; transition:all .2s; font-weight:700; font-family:'Plus Jakarta Sans',sans-serif; text-decoration:none; flex-shrink:0; font-size:.78rem; padding:10px 18px; border-radius:12px }
 .gp-btn:active { transform:scale(.97) }
+.gp-btn:focus-visible, .gp-tab:focus-visible, .gp-search-input:focus-visible, .gp-lb-row:focus-visible { outline:2px solid var(--gp-accent); outline-offset:2px; border-radius:12px }
 .gp-btn-primary { background:linear-gradient(135deg,#8b5cf6,#7c3aed); color:#fff; box-shadow:0 4px 12px rgba(139,92,246,.2) }
 .gp-btn-primary:hover { transform:translateY(-2px); box-shadow:0 8px 20px rgba(139,92,246,.3) }
 .gp-btn-danger { background:linear-gradient(135deg,#dc2626,#ef4444); color:#fff; box-shadow:0 4px 12px rgba(220,38,38,.2) }
@@ -261,7 +311,7 @@ if ($viewerId) {
 /* ═══ MY STUFF ═══ */
 .gp-my-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; padding:0 8px }
 .gp-my-panel { background:var(--gp-card); border:1px solid var(--gp-border); border-radius:20px; overflow:hidden; box-shadow:var(--gp-shadow) }
-.gp-my-panel-header { display:flex; align-items:center; gap:8px; padding:14px 20px; font-size:.85rem; font-weight:800; border-bottom:1px solid var(--gp-border); color:var(--gp-text) }
+.gp-my-panel-header { display:flex; align-items:center; gap:8px; padding:14px 20px; font-size:.85rem; font-weight:800; border-bottom:1px solid var(--gp-border); color:var(--gp-text); background:linear-gradient(135deg,rgba(139,92,246,.05),transparent) }
 .gp-my-panel-header i { color:var(--gp-accent) }
 .gp-my-panel-header .gp-count { margin-left:auto; font-size:.7rem; font-weight:700; background:rgba(139,92,246,.1); color:var(--gp-accent); padding:2px 10px; border-radius:999px }
 .gp-my-list { padding:4px }
@@ -275,8 +325,31 @@ if ($viewerId) {
 .gp-agent-quick { display:flex; gap:8px; padding:14px 20px }
 .gp-agent-quick .gp-btn { flex:1; justify-content:center }
 
+/* ═══ TEAM / CLUB MANAGEMENT ═══ */
+.gp-manage-search { width:100% }
+.gp-search-results { position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:210; background:var(--gp-card); border:1px solid var(--gp-border); border-radius:14px; box-shadow:0 12px 32px rgba(0,0,0,.15); padding:6px; max-height:250px; overflow-y:auto; scrollbar-width:none }
+.gp-search-results::-webkit-scrollbar { display:none }
+.gp-search-result { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:10px; cursor:pointer; transition:background .15s }
+.gp-search-result:hover { background:var(--gp-bg) }
+.gp-search-result img { width:34px; height:34px; border-radius:50%; object-fit:cover; flex-shrink:0 }
+.gp-search-result .gp-sr-info { flex:1; min-width:0 }
+.gp-search-result .gp-sr-info strong { display:block; font-size:.8rem; color:var(--gp-text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis }
+.gp-search-result .gp-sr-info span { font-size:.68rem; color:var(--gp-muted) }
+.gp-search-empty { padding:14px; text-align:center; font-size:.75rem; color:var(--gp-muted) }
+.gp-role-chip { display:inline-flex; align-items:center; gap:4px; font-size:.6rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; padding:3px 9px; border-radius:999px; background:rgba(148,163,184,.16); color:var(--gp-muted); flex-shrink:0 }
+.gp-role-chip.captain, .gp-role-chip.owner { background:rgba(245,158,11,.14); color:#d97706 }
+.gp-role-chip.manager { background:rgba(37,99,235,.12); color:#2563eb }
+.gp-role-chip i { font-size:.5rem }
+.gp-team-member .gp-role-chip { margin-left:auto }
+.gp-member-remove { color:#dc2626 !important }
+.gp-danger-zone { display:flex; align-items:center; gap:12px; margin-top:18px; padding:14px 16px; border-radius:14px; background:rgba(220,38,38,.06); border:1px solid rgba(220,38,38,.18) }
+.gp-danger-zone > div { flex:1; min-width:0 }
+.gp-danger-zone strong { display:block; font-size:.8rem; color:#dc2626 }
+.gp-danger-zone p { margin:2px 0 0; font-size:.7rem; color:var(--gp-muted) }
+.gp-my-icon.team-emblem { font-weight:900; font-size:.8rem; letter-spacing:.02em }
+
 /* ═══ EMPTY STATE ═══ */
-.gp-empty { text-align:center; padding:48px 20px; color:var(--gp-muted); grid-column:1/-1 }
+.gp-empty { text-align:center; padding:48px 20px; color:var(--gp-muted); grid-column:1/-1; border:1px dashed var(--gp-border); border-radius:20px; background:var(--gp-card) }
 .gp-empty i { font-size:2.5rem; display:block; margin-bottom:12px; opacity:.3 }
 .gp-empty h3 { font-size:1.05rem; font-weight:700; color:var(--gp-text); margin:0 0 4px }
 .gp-empty p { font-size:.8rem; margin:0 }
@@ -284,7 +357,9 @@ if ($viewerId) {
 /* ═══ LEADERBOARD ═══ */
 .gp-lb-row { display:grid; grid-template-columns:36px 1fr 80px 90px 60px; gap:8px; padding:12px 16px; align-items:center; border-bottom:1px solid var(--gp-border); transition:background .15s; font-size:.78rem; cursor:pointer; text-decoration:none; color:inherit }
 .gp-lb-row:last-child { border-bottom:none }
-.gp-lb-row:hover { background:var(--gp-bg) }
+.gp-lb-row:hover { background:linear-gradient(135deg,rgba(139,92,246,.06),rgba(139,92,246,.015)) }
+.gp-lb-wrap { background:var(--gp-card); border-radius:20px; border:1px solid var(--gp-border); box-shadow:var(--gp-shadow); overflow:hidden }
+.gp-lb-head { display:grid; grid-template-columns:36px 1fr 80px 90px 60px; gap:8px; padding:12px 16px; font-size:.68rem; font-weight:800; letter-spacing:.06em; color:var(--gp-muted); text-transform:uppercase; background:var(--gp-bg); border-bottom:1px solid var(--gp-border) }
 .gp-lb-rank { font-weight:800; color:var(--gp-muted); text-align:center }
 .gp-lb-rank.gold { color:#f59e0b } .gp-lb-rank.silver { color:#94a3b8 } .gp-lb-rank.bronze { color:#cd7f32 }
 .gp-lb-cell { font-weight:700; color:var(--gp-text); text-align:center }
@@ -501,7 +576,7 @@ if ($viewerId) {
 .gp-profile-sub-name { font-size:.85rem; font-weight:600; color:rgba(255,255,255,.7); margin-bottom:12px; display:block }
 .gp-profile-nickname-badge { font-size:.9rem; font-weight:700; color:var(--gp-accent); background:rgba(139,92,246,.15); padding:3px 12px; border-radius:99px; display:inline-block; margin-bottom:10px }
 .gp-profile-badges { display:flex; gap:8px; flex-wrap:wrap }
-.gp-badge { padding:4px 12px; border-radius:8px; font-size:.7rem; font-weight:800; display:flex; align-items:center; gap:6px; text-transform:uppercase }
+.gp-profile-hero .gp-badge { padding:4px 12px; border-radius:8px; font-size:.7rem; font-weight:800; display:flex; align-items:center; gap:6px; text-transform:uppercase }
 .gp-badge-skill { background:rgba(255,255,255,.1); color:#fff }
 .gp-badge-agent { background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff }
 .gp-badge-status { background:rgba(34,197,94,.2); color:#4ade80; border:1px solid rgba(34,197,94,.2) }
@@ -676,7 +751,7 @@ if ($viewerId) {
 .gp-select-option.active { background:rgba(139,92,246,.1); color:var(--gp-accent) }
 .gp-custom-select.active .gp-select-options { display:block }
 .gp-custom-select.active .gp-select-trigger { border-color:var(--gp-accent); box-shadow:0 0 0 4px rgba(139,92,246,.1) }
-.gp-filter-select { flex-shrink:0; width:200px }
+.gp-filter-select { flex-shrink:0; width:180px }
 .gp-modal-step-indicator { display:flex; align-items:center; justify-content:center; gap:8px; margin-bottom:18px }
 .gp-step-dot { width:8px; height:8px; border-radius:50%; background:var(--gp-border); transition:all .2s }
 .gp-step-dot.active { background:var(--gp-accent); width:24px; border-radius:99px }
@@ -690,18 +765,16 @@ if ($viewerId) {
 /* ═══ RESPONSIVE ═══ */
 @media (max-width:768px) {
   .gp-page { padding:0 6px 1.5rem }
-.gp-hero { padding:16px 12px 0; border-radius:0 0 24px 24px }
-.gp-hero-bg { min-height:300px; border-radius:0 0 24px 24px }
-.gp-hero-stage{opacity:.4}
-  .gp-hero-content h1 { font-size:clamp(24px,5.5vw,32px) }
-  .gp-hero-content p { font-size:.78rem }
-.gp-hero-stats { grid-template-columns:1fr 1fr; margin:14px 0 6px }
-.gp-stat-card { padding:13px 12px; border-left:1px solid rgba(255,255,255,.09) }
-.gp-stat-card:nth-child(2n+1) { border-left:0 }
-.gp-stat-card:nth-child(n+3) { border-top:1px solid rgba(255,255,255,.09) }
-.gp-stat-card .gp-stat-icon { font-size:14px; width:30px; height:30px; border-radius:9px }
-.gp-stat-value { font-size:1.15rem }
-.gp-stat-label { font-size:.6rem }
+.gp-hero { border-radius:20px; padding:34px 18px 24px }
+.gp-hero-stage{opacity:.12}
+  .gp-hero-content h1 { font-size:1.55rem }
+  .gp-hero-content p { font-size:.88rem }
+.gp-hero-actions { margin-top:18px; gap:8px }
+.gp-hero-stats { grid-template-columns:repeat(4,1fr); gap:8px; margin-top:24px }
+.gp-stat-card { padding:12px 6px 10px }
+.gp-stat-card .gp-stat-icon { width:36px; height:36px; border-radius:11px; font-size:.9rem }
+.gp-stat-value { font-size:1rem }
+.gp-stat-label { font-size:.58rem; letter-spacing:.3px }
   .gp-profile-bar { flex-wrap:wrap; gap:6px; padding:10px 12px; border-radius:16px }
   .gp-profile-avatar-wrap { width:34px; height:34px }
   .gp-profile-meta { flex:1; min-width:0 }
@@ -781,10 +854,10 @@ if ($viewerId) {
   .gp-card-body h3 { font-size:.9rem }
 }
 @media (max-width:480px) {
-.gp-hero-stats { margin:10px 0 4px }
-.gp-stat-card { padding:10px 8px; column-gap:8px }
-.gp-stat-card .gp-stat-icon { font-size:12px; width:26px; height:26px; border-radius:8px }
-.gp-stat-value { font-size:1rem }
+.gp-hero-stats { grid-template-columns:repeat(2,1fr); gap:8px; margin-top:20px }
+.gp-stat-card { padding:10px 6px 8px }
+.gp-stat-card .gp-stat-icon { width:32px; height:32px; border-radius:10px; font-size:.85rem }
+.gp-stat-value { font-size:.95rem }
 .gp-stat-label { font-size:.55rem }
   .gp-card { padding:0 }
   .gp-card-accent { height:2px }
@@ -814,10 +887,9 @@ if ($viewerId) {
   .gp-modal-panel { border-radius:18px; margin:8px }
   .gp-modal-body { padding:14px }
   .gp-modal-head { padding:12px 14px }
-  .gp-hero { padding:10px 8px 0; border-radius:0 0 18px 18px }
-  .gp-hero-bg { min-height:240px; border-radius:0 0 18px 18px }
-  .gp-hero-content h1 { font-size:clamp(24px,6vw,34px) }
-  .gp-hero-content p { font-size:.78rem }
+  .gp-hero { border-radius:16px; padding:28px 16px 20px }
+  .gp-hero-content h1 { font-size:1.4rem }
+  .gp-hero-content p { font-size:.85rem }
   .gp-my-grid { grid-template-columns:1fr }
 
 }
@@ -964,18 +1036,23 @@ if ($viewerId) {
 </svg>
 </div>
         <div class="gp-hero-content">
-            <span class="gp-hero-badge"><i class="fas fa-trophy"></i> DreamBD Arena</span>
+            <div class="gp-hero-kicker">
+                <span class="gp-hero-badge"><i class="fas fa-trophy"></i> DreamBD Arena</span>
+                <?php if (($statusStats['live'] + $statusStats['ongoing']) > 0): ?>
+                <span class="gp-hero-live"><span class="gp-hero-live-dot"></span> <?php echo $statusStats['live'] + $statusStats['ongoing']; ?> live now</span>
+                <?php endif; ?>
+            </div>
             <h1>Compete. Conquer. <span class="hero-em">Rise Up.</span></h1>
             <p>Join tournaments, build your team, and battle for glory and prizes.</p>
-            <!-- <div class="gp-hero-actions">
+            <div class="gp-hero-actions">
                 <?php if ($viewerId): ?>
-                    <a href="#browse" class="gp-btn gp-btn-primary" data-scroll-to="browse"><i class="fas fa-gamepad"></i> Browse tournaments</a>
-                    <a href="#dashboard" class="gp-btn gp-btn-ghost" data-scroll-to="dashboard"><i class="fas fa-chart-pie"></i> Dashboard</a>
+                    <button type="button" class="gp-hero-cta" data-scroll-to="browse"><i class="fas fa-gamepad"></i> Browse tournaments</button>
+                    <button type="button" class="gp-hero-ghost" data-open-modal="createTeamModal"><i class="fas fa-users"></i> Create a team</button>
                 <?php else: ?>
-                    <a href="index.php?page=register" class="gp-btn gp-btn-primary" data-page="register"><i class="fas fa-user-plus"></i> Join free</a>
-                    <a href="index.php?page=login" class="gp-btn gp-btn-ghost" data-page="login"><i class="fas fa-right-to-bracket"></i> Sign in</a>
+                    <a href="index.php?page=register" class="gp-hero-cta" data-page="register"><i class="fas fa-user-plus"></i> Join free</a>
+                    <a href="index.php?page=login" class="gp-hero-ghost" data-page="login"><i class="fas fa-right-to-bracket"></i> Sign in</a>
                 <?php endif; ?>
-            </div> -->
+            </div>
         </div>
         <div class="gp-hero-stats">
             <div class="gp-stat-card"><span class="gp-stat-icon"><i class="fas fa-trophy"></i></span><span class="gp-stat-value"><?php echo count($tournaments); ?></span><span class="gp-stat-label">Tournaments</span></div>
@@ -1039,6 +1116,22 @@ if ($viewerId) {
         </div>
     </section>
     <?php endif; ?>
+
+    <!-- ═══ DESKTOP SECTION NAV ═══ -->
+    <nav class="gp-desktop-nav" aria-label="Tournament sections">
+        <button type="button" class="gp-desktop-nav-item active" data-scroll-to="browse"><i class="fas fa-trophy"></i> Tournaments</button>
+        <?php if ($viewerId): ?>
+        <button type="button" class="gp-desktop-nav-item" data-scroll-to="dashboard"><i class="fas fa-chart-pie"></i> Dashboard</button>
+        <?php endif; ?>
+        <button type="button" class="gp-desktop-nav-item" data-scroll-to="clubs"><i class="fas fa-flag"></i> Clubs</button>
+        <button type="button" class="gp-desktop-nav-item" data-scroll-to="hire"><i class="fas fa-gavel"></i> Player Market</button>
+        <span class="gp-desktop-nav-spacer"></span>
+        <?php if ($viewerId): ?>
+        <button type="button" class="gp-desktop-nav-cta" data-open-modal="<?php echo $userRole === 'agent' ? 'createTournamentModal' : 'createTeamModal'; ?>"><i class="fas fa-plus"></i> <?php echo $userRole === 'agent' ? 'New tournament' : 'New team'; ?></button>
+        <?php else: ?>
+        <a href="index.php?page=register" class="gp-desktop-nav-cta"><i class="fas fa-user-plus"></i> Join free</a>
+        <?php endif; ?>
+    </nav>
 
     <!-- ═══ MOBILE BOTTOM NAV ═══ -->
     <nav class="gp-mobile-nav">
@@ -1149,13 +1242,13 @@ if ($viewerId) {
                         <span class="gp-card-icon" style="background:<?php echo $accent; ?>;color:#fff"><i class="fas <?php echo $icon; ?>"></i></span>
                         <span class="gp-badge <?php echo $badgeClass; ?>"><?php echo strtoupper($status); ?></span>
                         <?php if ($prize): ?>
-                        <span style="margin-left:auto;font-size:.7rem;font-weight:800;color:#f59e0b;display:inline-flex;align-items:center;gap:3px;padding:3px 10px;border-radius:999px;background:rgba(245,158,11,.1)"><i class="fas fa-trophy" style="font-size:.6rem"></i> ৳<?php echo $prize; ?></span>
+                        <span class="gp-card-prize"><i class="fas fa-trophy"></i> ৳<?php echo $prize; ?></span>
                         <?php endif; ?>
                     </div>
                     <div class="gp-card-body">
                         <h3><a href="index.php?page=tournament&id=<?php echo $tid; ?>" data-no-ajax style="color:inherit;text-decoration:none"><?php echo $title; ?></a></h3>
                         <?php if ($cat || $agentName): ?>
-                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 0">
+                        <div class="gp-card-tags">
                             <?php if ($cat): ?><span class="gp-card-tag"><i class="fas fa-tag"></i> <?php echo $cat; ?></span><?php endif; ?>
                             <?php if ($agentName): ?><span class="gp-card-host"><i class="fas fa-crown" style="color:#f59e0b"></i> <?php echo $agentName; ?></span><?php endif; ?>
                         </div>
@@ -1187,16 +1280,12 @@ if ($viewerId) {
                         ?>
                         <div><i class="fas <?php echo $bracketIcons[$bracketType] ?? 'fa-diagram-project'; ?>" style="color:#7c3aed"></i> <?php echo $bracketLabels[$bracketType] ?? 'Single Elim'; ?></div>
                         <?php if ($maxTeams > 0): ?>
-                        <div style="grid-column:1/-1;margin-top:2px">
-                            <div style="display:flex;align-items:center;gap:8px;font-size:.7rem;color:var(--gp-muted)">
-                                <span style="flex:1;height:4px;border-radius:2px;background:var(--gp-border);overflow:hidden">
-                                    <span style="display:block;height:100%;width:<?php echo min(100, round($regd/$maxTeams*100)); ?>%;border-radius:2px;background:linear-gradient(90deg,#7c3aed,#a78bfa);transition:width .3s"></span>
-                                </span>
-                            </div>
+                        <div class="gp-card-progress" title="<?php echo $regd; ?> of <?php echo $maxTeams; ?> slots filled">
+                            <span class="gp-card-progress-track"><span class="gp-card-progress-fill" style="width:<?php echo min(100, round($regd/$maxTeams*100)); ?>%"></span></span>
                         </div>
                         <?php endif; ?>
                         <?php if ($restrictedClubName): ?>
-                        <div style="grid-column:1/-1;margin-top:2px;display:flex;align-items:center;gap:6px"><span style="display:inline-flex;align-items:center;gap:4px;font-size:.65rem;font-weight:700;padding:3px 8px;border-radius:999px;background:rgba(124,58,237,.1);color:<?php echo $restrictedClubColour ?: '#7c3aed'; ?>"><i class="fas fa-lock"></i> <?php echo htmlspecialchars($restrictedClubName); ?> only</span></div>
+                        <span class="gp-card-lock" style="color:<?php echo $restrictedClubColour ?: '#7c3aed'; ?>"><i class="fas fa-lock"></i> <?php echo htmlspecialchars($restrictedClubName); ?> only</span>
                         <?php endif; ?>
                     </div>
                     <div class="gp-card-actions">
@@ -1277,14 +1366,15 @@ if ($viewerId) {
                         $memberCount = (int)$memberStmt->fetchColumn();
                     ?>
                     <div class="gp-my-item team-item" data-team-id="<?php echo $tId; ?>">
-                        <span class="gp-my-icon team-icon" style="background:linear-gradient(135deg,#7c3aed,#2563eb)"><i class="fas fa-users"></i></span>
+                        <span class="gp-my-icon team-emblem" style="background:linear-gradient(135deg,#7c3aed,#2563eb);color:#fff"><?php echo htmlspecialchars(strtoupper(substr($team['name'] ?? 'T', 0, 2))); ?></span>
                         <div class="gp-my-info">
                             <strong><?php echo $tName; ?></strong>
-                            <span><?php echo $memberCount; ?> members <?php if ($tGame): ?>&middot; <?php echo $tGame; ?><?php endif; ?> &middot; <?php echo ucfirst($tRole); ?></span>
+                            <span><?php echo $memberCount; ?> members<?php if ($tGame): ?> &middot; <?php echo $tGame; ?><?php endif; ?></span>
                         </div>
-                        <button class="gp-btn gp-btn-xs gp-btn-outline gp-manage-team" data-team-id="<?php echo $tId; ?>" data-team-name="<?php echo htmlspecialchars($tName, ENT_QUOTES); ?>"><i class="fas fa-users-gear"></i> Manage</button>
+                        <span class="gp-role-chip <?php echo htmlspecialchars($tRole); ?>"><i class="fas <?php echo $tRole === 'captain' ? 'fa-crown' : 'fa-user'; ?>"></i> <?php echo ucfirst($tRole); ?></span>
+                        <button class="gp-btn gp-btn-xs gp-btn-outline gp-manage-team" data-team-id="<?php echo $tId; ?>" data-team-name="<?php echo htmlspecialchars($team['name'] ?? '', ENT_QUOTES); ?>"><i class="fas fa-users-gear"></i> Manage</button>
                         <?php if ($tRole === 'captain'): ?>
-                        <button class="gp-btn gp-btn-xs gp-btn-ghost gp-delete-team" data-team-id="<?php echo $tId; ?>" data-team-name="<?php echo htmlspecialchars($tName, ENT_QUOTES); ?>" style="color:#dc2626"><i class="fas fa-trash-can"></i></button>
+                        <button class="gp-btn gp-btn-xs gp-btn-ghost gp-delete-team" data-team-id="<?php echo $tId; ?>" data-team-name="<?php echo htmlspecialchars($team['name'] ?? '', ENT_QUOTES); ?>" style="color:#dc2626" title="Delete team"><i class="fas fa-trash-can"></i></button>
                         <?php endif; ?>
                     </div>
                     <?php endforeach; endif; ?>
@@ -1320,8 +1410,8 @@ if ($viewerId) {
                 <button class="gp-btn gp-btn-sm gp-btn-ghost" onclick="loadLeaderboard()"><i class="fas fa-rotate"></i> Refresh</button>
             </div>
         </div>
-        <div style="background:var(--gp-card);border-radius:20px;border:1px solid var(--gp-border);overflow:hidden">
-            <div style="display:grid;grid-template-columns:36px 1fr 80px 90px 60px;gap:8px;padding:12px 16px;font-size:.7rem;font-weight:700;color:var(--gp-muted);text-transform:uppercase;background:var(--gp-bg);border-bottom:1px solid var(--gp-border)" id="lbHeader">
+        <div class="gp-lb-wrap">
+            <div class="gp-lb-head" id="lbHeader">
                 <span>#</span><span>Player</span><span>Points</span><span>Prize</span><span>Rank</span>
             </div>
             <div id="lbBody">
@@ -1394,7 +1484,17 @@ if ($viewerId) {
             <?php endif; ?>
         </div>
         <div class="cl-members" style="margin-bottom:16px">
-            <?php foreach ($clubMembers as $m): ?>
+            <?php
+            $viewerClubRole = '';
+            if ($viewerId) { foreach ($clubMembers as $mm) { if ((int)$mm['id'] === (int)$viewerId) { $viewerClubRole = $mm['role'] ?? ''; break; } } }
+            ?>
+            <?php foreach ($clubMembers as $m):
+                $canKickMember = false;
+                if ($viewerId && $m['role'] !== 'owner' && (int)$m['id'] !== (int)$viewerId) {
+                    if ($viewerClubRole === 'owner') $canKickMember = true;
+                    elseif ($viewerClubRole === 'manager' && in_array($m['role'], ['player','sub','member'], true)) $canKickMember = true;
+                }
+            ?>
             <div class="cl-member">
                 <img src="assets/avatars/<?php echo htmlspecialchars($m['avatar'] ?? 'default.png'); ?>" alt="" class="cl-member-avatar" onerror="this.src='assets/avatars/default.png'">
                 <div class="cl-member-info">
@@ -1402,6 +1502,9 @@ if ($viewerId) {
                     <div class="cl-member-joined">Joined <?php echo date('M j, Y', strtotime($m['joined_at'])); ?></div>
                 </div>
                 <span class="cl-member-role <?php echo $m['role']; ?>"><?php echo $m['role']; ?></span>
+                <?php if ($canKickMember): ?>
+                <button type="button" class="gp-btn gp-btn-xs gp-btn-ghost gp-member-remove" onclick="removeMember(this, <?php echo (int)($clubDetail['id'] ?? 0); ?>, <?php echo (int)$m['id']; ?>)" title="Remove from club"><i class="fas fa-user-minus"></i></button>
+                <?php endif; ?>
             </div>
             <?php endforeach; if (empty($clubMembers)): ?>
             <div class="cl-empty"><i class="fas fa-users"></i><p>No members yet.</p></div>
@@ -1482,6 +1585,7 @@ if ($viewerId) {
         <div class="pm-tabs" id="pmTabs">
             <button class="pm-tab active" data-tab="free"><i class="fas fa-users"></i> Free Agents (<?php echo count($players); ?>)</button>
             <button class="pm-tab" data-tab="auctions"><i class="fas fa-gavel"></i> Live Auctions (<?php echo count($auctions); ?>)</button>
+            <?php if ($viewerId): ?><button class="pm-tab" data-tab="mine"><i class="fas fa-shield-halved"></i> My Players (<?php echo count($myPlayers); ?>)</button><?php endif; ?>
         </div>
 
         <div class="pm-tab-content active" id="tabFree">
@@ -1505,9 +1609,9 @@ if ($viewerId) {
                         <?php endif; ?>
                     </div>
                     <div class="pm-card-actions">
-                        <a href="?page=tournaments&user_id=<?php echo $p['user_id']; ?>#hire" class="gp-btn gp-btn-sm gp-btn-ghost"><i class="fas fa-eye"></i> Details</a>
-                        <?php if ($viewerId && (int)$p['owner_id'] === $viewerId): ?>
-                        <button class="gp-btn gp-btn-sm gp-btn-outline" onclick="openAuctionModal(<?php echo $p['id']; ?>)"><i class="fas fa-gavel"></i> Auction</button>
+                        <a href="?page=tournaments&user_id=<?php echo (int)$p['user_id']; ?>#hire" class="gp-btn gp-btn-sm gp-btn-ghost"><i class="fas fa-eye"></i> Details</a>
+                        <?php if ($viewerId && (float)$p['market_value'] > 0): ?>
+                        <button class="gp-btn gp-btn-sm gp-btn-accent" onclick="openBuyModal(<?php echo (int)$p['id']; ?>, '<?php echo htmlspecialchars($p['full_name'] ?: $p['username']); ?>', <?php echo (float)$p['market_value']; ?>)"><i class="fas fa-shopping-cart"></i> Buy</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -1539,9 +1643,54 @@ if ($viewerId) {
                         <div class="pm-card-row"><span>Time Left</span><span style="font-weight:800;color:<?php echo $timeLeft < 3600 ? '#dc2626' : 'var(--pm-text)'; ?>"><?php echo $hours; ?>h <?php echo $mins; ?>m</span></div>
                     </div>
                     <div class="pm-card-actions">
-                        <a href="?page=tournaments&user_id=<?php echo $a['player_id']; ?>#hire" class="gp-btn gp-btn-sm gp-btn-ghost"><i class="fas fa-eye"></i> Details</a>
+                        <a href="?page=tournaments&user_id=<?php echo (int)$a['player_user_id']; ?>#hire" class="gp-btn gp-btn-sm gp-btn-ghost"><i class="fas fa-eye"></i> Details</a>
                         <?php if ($viewerId && (int)$a['seller_id'] !== $viewerId): ?>
                         <button class="gp-btn gp-btn-sm gp-btn-primary" onclick="openBidModal(<?php echo $a['id']; ?>, <?php echo $a['highest_bid'] ?: $a['base_price']; ?>, <?php echo $a['min_increment'] ?: 50; ?>)"><i class="fas fa-gavel"></i> Bid</button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+
+        <div class="pm-tab-content" id="tabMine" style="display:none">
+            <?php if (!$viewerId): ?>
+            <div class="pm-empty"><i class="fas fa-lock"></i><p>Log in to manage your squad.</p></div>
+            <?php elseif (empty($myPlayers)): ?>
+            <div class="pm-empty"><i class="fas fa-user-plus"></i><p>You don't own a player card yet. Sign a free agent from the market or win an auction.</p></div>
+            <?php else: ?>
+            <div class="pm-grid">
+                <?php foreach ($myPlayers as $mp): ?>
+                <div class="pm-card">
+                    <?php if ((int)$mp['has_active_auction'] > 0): ?><span class="pm-card-badge auction"><i class="fas fa-gavel"></i> ON AUCTION</span><?php endif; ?>
+                    <div class="pm-card-top">
+                        <img src="assets/avatars/<?php echo htmlspecialchars($mp['avatar'] ?? 'default.png'); ?>" alt="" class="pm-card-avatar" onerror="this.src='assets/avatars/default.png'">
+                        <div class="pm-card-info">
+                            <div class="pm-card-name"><?php echo htmlspecialchars($mp['full_name'] ?: $mp['username']); ?></div>
+                            <span class="pm-card-status <?php echo htmlspecialchars($mp['status']); ?>"><?php echo str_replace('_', ' ', htmlspecialchars($mp['status'])); ?></span>
+                        </div>
+                    </div>
+                    <div class="pm-card-body">
+                        <div class="pm-card-row"><span>Market Value</span><span>৳<?php echo number_format((float) $mp['market_value']); ?></span></div>
+                        <?php if (!empty($mp['club_name'])): ?>
+                        <div class="pm-card-row"><span>Club</span><span style="color:<?php echo htmlspecialchars($mp['club_colour'] ?? '#7c3aed'); ?>;font-weight:700"><?php echo htmlspecialchars($mp['club_tag'] ?: $mp['club_name']); ?></span></div>
+                        <?php endif; ?>
+                        <?php if ($mp['rating'] > 0): ?>
+                        <div class="pm-card-row"><span>Rating</span><span><?php echo $mp['rating']; ?> / 5.0</span></div>
+                        <?php endif; ?>
+                    </div>
+                    <div class="pm-card-actions">
+                        <a href="?page=tournaments&user_id=<?php echo (int)$mp['user_id']; ?>#hire" class="gp-btn gp-btn-sm gp-btn-ghost"><i class="fas fa-eye"></i> Details</a>
+                        <button class="gp-btn gp-btn-sm gp-btn-outline" onclick="openValueModal(<?php echo (int)$mp['id']; ?>, '<?php echo htmlspecialchars($mp['full_name'] ?: $mp['username'], ENT_QUOTES); ?>', <?php echo (float) $mp['market_value']; ?>)"><i class="fas fa-tag"></i> Value</button>
+                        <?php if ((int)$mp['owner_id'] === (int)$viewerId && (int)$mp['has_active_auction'] === 0): ?>
+                        <button class="gp-btn gp-btn-sm gp-btn-primary" onclick="openAuctionModal(<?php echo (int)$mp['id']; ?>)"><i class="fas fa-gavel"></i> Auction</button>
+                        <?php endif; ?>
+                        <?php if ((int)$mp['owner_id'] === (int)$viewerId && $managerClubs): $hireClub = $managerClubs[0]; ?>
+                        <button class="gp-btn gp-btn-sm gp-btn-accent" onclick="hirePlayer(<?php echo (int)$mp['id']; ?>, <?php echo (int)$hireClub['id']; ?>)"><i class="fas fa-handshake"></i> Hire to <?php echo htmlspecialchars($hireClub['tag'] ?: $hireClub['name']); ?></button>
+                        <?php endif; ?>
+                        <?php if ((int)$mp['owner_id'] === (int)$viewerId): ?>
+                        <button class="gp-btn gp-btn-sm gp-btn-danger" onclick="releasePlayer(<?php echo (int)$mp['id']; ?>)"><i class="fas fa-user-minus"></i> Release</button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -2377,6 +2526,88 @@ var filter = document.getElementById('lbFilter');
     </div>
 </div>
 
+<!-- ═══ TEAM MANAGE MODAL ═══ -->
+<div class="gp-modal hidden" id="teamManageModal">
+    <div class="gp-modal-panel">
+        <div class="gp-modal-head">
+            <h3><i class="fas fa-users-gear" style="color:#7c3aed"></i> <span id="teamManageTitle">Manage team</span></h3>
+            <button class="gp-modal-close" data-close-modal><i class="fas fa-times"></i></button>
+        </div>
+        <div class="gp-modal-body">
+            <div class="gp-form-group">
+                <label><i class="fas fa-user-plus"></i> Add a player</label>
+                <div class="gp-search gp-manage-search">
+                    <i class="fas fa-search gp-search-icon"></i>
+                    <input type="text" id="teamMemberSearch" class="gp-search-input" placeholder="Search by name or @username" autocomplete="off">
+                </div>
+                <div class="gp-search-results hidden" id="teamMemberResults"></div>
+            </div>
+
+            <div class="gp-block-title" style="margin:14px 0 8px"><i class="fas fa-shield-halved"></i> Squad</div>
+            <div class="gp-team-members" id="teamManageMembers">
+                <div class="gp-loading"><i class="fas fa-spinner fa-spin"></i> Loading squad...</div>
+            </div>
+
+            <div class="gp-danger-zone">
+                <div>
+                    <strong>Delete this team</strong>
+                    <p>Removes the team from every tournament. This can't be undone.</p>
+                </div>
+                <button type="button" class="gp-btn gp-btn-sm gp-btn-danger" id="teamDeleteBtn"><i class="fas fa-trash-can"></i> Delete</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ EDIT / MANAGE CLUB MODAL ═══ -->
+<div class="gp-modal hidden" id="editClubModal" data-club-id="<?php echo (int)($clubDetail['id'] ?? 0); ?>">
+    <div class="gp-modal-panel sm">
+        <div class="gp-modal-head">
+            <h3><i class="fas fa-pen-nib" style="color:#7c3aed"></i> Manage club</h3>
+            <button class="gp-modal-close" data-close-modal><i class="fas fa-times"></i></button>
+        </div>
+        <div class="gp-modal-body">
+            <form id="editClubForm">
+                <input type="hidden" name="csrf_token" value="<?php echo htmlspecialchars($csrfToken); ?>">
+                <div class="gp-form-group">
+                    <label>Club name</label>
+                    <input class="gp-input" name="name" value="<?php echo htmlspecialchars($clubDetail['name'] ?? ''); ?>" required>
+                </div>
+                <div class="gp-form-grid two">
+                    <div class="gp-form-group">
+                        <label>Tag (2-10 chars)</label>
+                        <input class="gp-input" name="tag" maxlength="10" value="<?php echo htmlspecialchars($clubDetail['tag'] ?? ''); ?>" required>
+                    </div>
+                    <div class="gp-form-group">
+                        <label>Region</label>
+                        <input class="gp-input" name="region" value="<?php echo htmlspecialchars($clubDetail['region'] ?? ''); ?>">
+                    </div>
+                </div>
+                <div class="gp-form-group">
+                    <label>Club colour</label>
+                    <div class="gp-color-picker" id="editClubColorPicker">
+                        <?php $edColors = ['#7c3aed','#2563eb','#059669','#d97706','#dc2626','#ec4899','#06b6d4','#8b5cf6','#10b981'];
+                        $curCol = $clubDetail['colour'] ?? '#7c3aed';
+                        foreach ($edColors as $cl): ?>
+                        <button type="button" class="gp-color-opt<?php if ($cl === $curCol) echo ' active'; ?>" style="background:<?php echo $cl; ?>" data-color="<?php echo $cl; ?>"></button>
+                        <?php endforeach; ?>
+                    </div>
+                    <input type="hidden" name="colour" id="editClubColourInput" value="<?php echo htmlspecialchars($clubDetail['colour'] ?? '#7c3aed'); ?>">
+                </div>
+                <div class="gp-form-group">
+                    <label>Description</label>
+                    <textarea class="gp-input" name="description" rows="3"><?php echo htmlspecialchars($clubDetail['description'] ?? ''); ?></textarea>
+                </div>
+                <div class="gp-modal-actions">
+                    <button type="button" class="gp-btn gp-btn-ghost" data-close-modal>Cancel</button>
+                    <button type="submit" class="gp-btn gp-btn-accent"><i class="fas fa-check"></i> Save changes</button>
+                </div>
+                <div class="gp-feedback hidden" id="editClubFeedback"></div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <!-- ═══ SUCCESS / FAIL OVERLAY — REDESIGNED ═══ -->
 <div class="gp-success-overlay" id="baResultOverlay">
     <div class="gp-success-box">
@@ -2515,6 +2746,33 @@ var filter = document.getElementById('lbFilter');
                 <div class="gp-modal-actions">
                     <button type="button" class="gp-btn gp-btn-ghost" data-close-modal>Cancel</button>
                     <button type="submit" class="gp-btn gp-btn-accent"><i class="fas fa-check"></i> List for Auction</button>
+                </div>
+                <div class="gp-feedback hidden"></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- ═══ MARKET VALUE MODAL ═══ -->
+<div class="gp-modal hidden" id="valueModal">
+    <div class="gp-modal-panel sm">
+        <div class="gp-modal-head">
+            <h3><i class="fas fa-tag" style="color:#38bdf8"></i> Set Market Value</h3>
+            <button class="gp-modal-close" data-close-modal><i class="fas fa-times"></i></button>
+        </div>
+        <div class="gp-modal-body">
+            <form id="valueForm">
+                <input type="hidden" name="csrf_token" value="<?php echo $csrfToken; ?>">
+                <input type="hidden" name="action" value="set_player_value">
+                <input type="hidden" name="player_id" id="valuePlayerId">
+                <div class="gp-form-group">
+                    <label>Asking Price (৳)</label>
+                    <input class="gp-input" type="number" name="market_value" id="valueAmount" min="0" step="50" required>
+                    <span id="valueInfo" style="font-size:.75rem;color:var(--gp-muted);margin-top:4px"></span>
+                </div>
+                <div class="gp-modal-actions">
+                    <button type="button" class="gp-btn gp-btn-ghost" data-close-modal>Cancel</button>
+                    <button type="submit" class="gp-btn gp-btn-accent"><i class="fas fa-check"></i> Save Value</button>
                 </div>
                 <div class="gp-feedback hidden"></div>
             </form>
@@ -2694,6 +2952,9 @@ var filter = document.getElementById('lbFilter');
         document.querySelectorAll('.gp-mobile-nav-item[data-scroll-to]').forEach(function(n) {
             n.classList.toggle('active', n.getAttribute('data-scroll-to') === id);
         });
+        document.querySelectorAll('.gp-desktop-nav-item[data-scroll-to]').forEach(function(n) {
+            n.classList.toggle('active', n.getAttribute('data-scroll-to') === id);
+        });
 
         // Scroll to section
         var section = document.getElementById(id);
@@ -2868,6 +3129,28 @@ var filter = document.getElementById('lbFilter');
         }).catch(function() { btn.disabled = false; btn.innerHTML = '<i class="fas fa-gavel"></i> Place Bid'; toast('Server error','error'); });
     });
 
+    window.openValueModal = function(playerId, name, current) {
+        document.getElementById('valuePlayerId').value = playerId;
+        document.getElementById('valueAmount').value = current > 0 ? current : '';
+        document.getElementById('valueInfo').textContent = 'Buyers see ' + name + ' at this price in the free-agent market.';
+        document.getElementById('valueModal').classList.remove('hidden');
+        var overlay = document.getElementById('gpOverlay');
+        if (overlay) overlay.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    };
+
+    document.getElementById('valueForm') && document.getElementById('valueForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        var btn = this.querySelector('button[type="submit"]');
+        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        fetch('handlers/tournament_handler.php', { method:'POST', body:new URLSearchParams(new FormData(this)) })
+        .then(function(r) { return r.json(); }).then(function(res) {
+            btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Save Value';
+            if (res.success) { closeModal('valueModal'); toast('Market value updated!','success'); setTimeout(function() { location.reload(); }, 700); }
+            else toast(res.message || 'Error','error');
+        }).catch(function() { btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Save Value'; toast('Server error','error'); });
+    });
+
     window.openAuctionModal = function(playerId) {
         document.getElementById('auctionPlayerId').value = playerId;
         document.getElementById('auctionModal').classList.remove('hidden');
@@ -2930,6 +3213,169 @@ var filter = document.getElementById('lbFilter');
         document.body.style.overflow = '';
     }
     window.closeModal = closeModal;
+
+    // ═══════════════════════════════════════════════════════
+    //  TEAM & CLUB MANAGEMENT
+    // ═══════════════════════════════════════════════════════
+    function gpOpenModal(id) {
+        var o = document.getElementById('gpOverlay');
+        var m = document.getElementById(id);
+        if (o) o.classList.remove('hidden');
+        if (m) m.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+    }
+    function avatarUrl(a) { if (!a) return 'assets/avatars/default.png'; return a.indexOf('/') > -1 ? a : 'assets/avatars/' + a; }
+
+    var _manageTeamId = 0;
+    var _teamSearchTimer = null;
+
+    window.openTeamManage = function(teamId, name) {
+        _manageTeamId = parseInt(teamId, 10) || 0;
+        var t = document.getElementById('teamManageTitle');
+        if (t) t.textContent = name || 'Manage team';
+        var s = document.getElementById('teamMemberSearch');
+        if (s) s.value = '';
+        var res = document.getElementById('teamMemberResults');
+        if (res) { res.classList.add('hidden'); res.innerHTML = ''; }
+        gpOpenModal('teamManageModal');
+        loadTeamMembers();
+    };
+
+    function loadTeamMembers() {
+        var box = document.getElementById('teamManageMembers');
+        if (!box) return;
+        box.innerHTML = '<div class="gp-loading"><i class="fas fa-spinner fa-spin"></i> Loading squad...</div>';
+        api({ action: 'get_team_members', team_id: _manageTeamId }).then(function(r) {
+            if (!r.success || !r.members || !r.members.length) {
+                box.innerHTML = '<div class="gp-my-empty">No members yet. Add players above.</div>';
+                return;
+            }
+            box.innerHTML = r.members.map(function(m) {
+                var role = m.role || 'member';
+                var name = escHtml(m.full_name || m.username || 'Player');
+                var rm = role === 'captain' ? ''
+                    : '<button type="button" class="gp-btn gp-btn-xs gp-btn-ghost gp-member-remove" onclick="removeTeamMemberUI(' + m.id + ')" title="Remove from team"><i class="fas fa-user-minus"></i></button>';
+                return '<div class="gp-team-member">' +
+                    '<img src="' + avatarUrl(m.avatar) + '" alt="" onerror="this.src=\'assets/avatars/default.png\'">' +
+                    '<div class="gp-team-member-info"><strong>' + name + '</strong><span>@' + escHtml(m.username || '') + '</span></div>' +
+                    '<span class="gp-role-chip ' + escHtml(role) + '">' + (role === 'captain' ? '<i class="fas fa-crown"></i> ' : '') + escHtml(role) + '</span>' +
+                    rm + '</div>';
+            }).join('');
+        }).catch(function() {
+            box.innerHTML = '<div class="gp-my-empty">Could not load squad.</div>';
+        });
+    }
+
+    window.removeTeamMemberUI = function(userId) {
+        if (!confirm('Remove this player from the team?')) return;
+        api({ action: 'remove_member', team_id: _manageTeamId, member_id: userId, csrf_token: csrfToken }).then(function(r) {
+            toast(r.message || 'Done', r.success ? 'success' : 'error');
+            if (r.success) loadTeamMembers();
+        }).catch(function() { toast('Network error', 'error'); });
+    };
+
+    window.addTeamMemberUI = function(userId) {
+        api({ action: 'add_member', team_id: _manageTeamId, member_id: userId, csrf_token: csrfToken }).then(function(r) {
+            toast(r.message || 'Done', r.success ? 'success' : 'error');
+            if (r.success) {
+                var res = document.getElementById('teamMemberResults');
+                if (res) { res.classList.add('hidden'); res.innerHTML = ''; }
+                var s = document.getElementById('teamMemberSearch');
+                if (s) s.value = '';
+                loadTeamMembers();
+            }
+        }).catch(function() { toast('Network error', 'error'); });
+    };
+
+    window.deleteTeamConfirm = function(teamId, name) {
+        if (!confirm('Delete "' + (name || 'this team') + '"? This cannot be undone.')) return;
+        api({ action: 'delete_team', team_id: teamId, csrf_token: csrfToken }).then(function(r) {
+            toast(r.message || 'Done', r.success ? 'success' : 'error');
+            if (r.success) setTimeout(function() { location.reload(); }, 700);
+        }).catch(function() { toast('Network error', 'error'); });
+    };
+
+    (function bindTeamMemberSearch() {
+        var s = document.getElementById('teamMemberSearch');
+        if (!s) return;
+        s.addEventListener('input', function() {
+            clearTimeout(_teamSearchTimer);
+            var q = this.value.trim();
+            var res = document.getElementById('teamMemberResults');
+            if (!res) return;
+            if (q.length < 2) { res.classList.add('hidden'); res.innerHTML = ''; return; }
+            _teamSearchTimer = setTimeout(function() {
+                api({ action: 'search_users', query: q }).then(function(r) {
+                    var users = r.users || [];
+                    if (!users.length) { res.innerHTML = '<div class="gp-search-empty">No players found.</div>'; }
+                    else {
+                        res.innerHTML = users.map(function(u) {
+                            return '<div class="gp-search-result" onclick="addTeamMemberUI(' + u.id + ')">' +
+                                '<img src="assets/avatars/default.png" alt="">' +
+                                '<div class="gp-sr-info"><strong>' + escHtml(u.full_name || u.username) + '</strong><span>@' + escHtml(u.username || '') + '</span></div>' +
+                                '<i class="fas fa-plus" style="color:var(--gp-accent)"></i></div>';
+                        }).join('');
+                    }
+                    res.classList.remove('hidden');
+                }).catch(function() {});
+            }, 250);
+        });
+    })();
+
+    document.querySelectorAll('.gp-manage-team').forEach(function(b) {
+        b.addEventListener('click', function() { window.openTeamManage(this.getAttribute('data-team-id'), this.getAttribute('data-team-name')); });
+    });
+    document.querySelectorAll('.gp-delete-team').forEach(function(b) {
+        b.addEventListener('click', function() { window.deleteTeamConfirm(this.getAttribute('data-team-id'), this.getAttribute('data-team-name')); });
+    });
+    var teamDeleteBtn = document.getElementById('teamDeleteBtn');
+    if (teamDeleteBtn) teamDeleteBtn.addEventListener('click', function() {
+        var t = document.getElementById('teamManageTitle');
+        window.deleteTeamConfirm(_manageTeamId, t ? t.textContent : 'this team');
+    });
+
+    // ─── CLUB MANAGEMENT ───
+    window.openEditClubModal = function(clubId) {
+        var m = document.getElementById('editClubModal');
+        if (!m) return;
+        if (clubId) m.setAttribute('data-club-id', clubId);
+        gpOpenModal('editClubModal');
+    };
+
+    var editClubPicker = document.getElementById('editClubColorPicker');
+    if (editClubPicker) editClubPicker.addEventListener('click', function(e) {
+        var opt = e.target.closest('.gp-color-opt');
+        if (!opt) return;
+        this.querySelectorAll('.gp-color-opt').forEach(function(o) { o.classList.remove('active'); });
+        opt.classList.add('active');
+        var inp = document.getElementById('editClubColourInput');
+        if (inp) inp.value = opt.getAttribute('data-color');
+    });
+
+    var editClubForm = document.getElementById('editClubForm');
+    if (editClubForm) editClubForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        var btn = this.querySelector('button[type="submit"]');
+        var orig = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+        var data = new FormData(this);
+        data.set('action', 'update_club');
+        data.set('csrf_token', csrfToken);
+        var modal = document.getElementById('editClubModal');
+        data.set('club_id', modal ? modal.getAttribute('data-club-id') : '');
+        fetch('handlers/tournament_handler.php', { method: 'POST', body: new URLSearchParams(data) })
+            .then(function(r) { return r.json(); })
+            .then(function(res) {
+                btn.disabled = false; btn.innerHTML = orig;
+                var fb = document.getElementById('editClubFeedback');
+                if (fb) { fb.className = 'gp-feedback ' + (res.success ? 'success' : 'error'); fb.textContent = res.message || 'Done.'; }
+                if (res.success) setTimeout(function() { location.reload(); }, 700);
+            })
+            .catch(function() {
+                btn.disabled = false; btn.innerHTML = orig;
+                toast('Server error', 'error');
+            });
+    });
 
     // Move bottom nav to end of body so it's never trapped in a stacking context
     var gpNav = document.querySelector('.gp-mobile-nav');
