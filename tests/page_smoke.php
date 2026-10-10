@@ -38,6 +38,18 @@ function render(array $session): string {
     return (string) ob_get_clean();
 }
 
+function renderRoom(array $session, int $tournamentId): string {
+    $_SESSION = $session;
+    $_GET = ['page' => 'tournament-room', 'id' => $tournamentId];
+    $_SERVER['REQUEST_METHOD'] = 'GET';
+    $_SERVER['HTTP_HOST'] = 'localhost';
+    $_SERVER['REQUEST_URI'] = '/Dream/index.php?page=tournament-room&id=' . $tournamentId;
+    $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+    ob_start();
+    require __DIR__ . '/../pages/tournament-room.php';
+    return (string) ob_get_clean();
+}
+
 // Make the render exercise the ownership branch: give the viewer an owned player
 // and a club they manage (both removed again at the end).
 $playerRow = $db->query("SELECT p.id, p.user_id FROM players p WHERE p.user_id <> " . (int) $agentId . " ORDER BY p.id LIMIT 1")->fetch(PDO::FETCH_ASSOC);
@@ -51,8 +63,10 @@ if ($playerRow) {
     $db->prepare("INSERT INTO club_members (club_id, user_id, role) VALUES (?, ?, 'owner')")->execute([$clubId, $agentId]);
 }
 
+$agentSession = ['user_id' => $agentId, 'role' => 'agent', 'username' => 'render_test', 'csrf_token' => 'smoke'];
+
 echo "\n== RENDER AS AGENT ==\n";
-$agentHtml = render(['user_id' => $agentId, 'role' => 'agent', 'username' => 'render_test']);
+$agentHtml = render($agentSession);
 check('page rendered output', strlen($agentHtml) > 20000, 'bytes=' . strlen($agentHtml));
 check('no PHP fatal/parse error in output', stripos($agentHtml, 'Fatal error') === false && stripos($agentHtml, 'Parse error') === false);
 check('no PHP warning/notice in output', stripos($agentHtml, 'Warning:') === false && stripos($agentHtml, 'Notice:') === false && stripos($agentHtml, 'Deprecated:') === false, substr($agentHtml, 0, 400));
@@ -73,6 +87,20 @@ if ($playerRow) {
     check('owned player card shows ON AUCTION badge slot', strpos($agentHtml, 'pm-card-badge auction') !== false || true);
 }
 check('free-agent + auction tabs rendered', strpos($agentHtml, "data-tab=\"free\"") !== false && strpos($agentHtml, 'data-tab="auctions"') !== false);
+
+echo "\n== RENDER TOURNAMENT ROOM ==\n";
+$db->prepare("INSERT INTO tournaments (title, description, status, starts_at, checkin_minutes, category, max_teams, game_icon, bracket_type, best_of, accent_color, entry_fee, agent_id) VALUES ('[QA] Smoke Room', 'smoke test', 'upcoming', ?, 30, 'eSports', 8, 'fa-gamepad', 'single_elimination', 1, '#7c3aed', 0, ?)")
+    ->execute([date('Y-m-d H:i:s', strtotime('+1 hour')), $agentId]);
+$roomTid = (int) $db->lastInsertId();
+$roomHtml = renderRoom($agentSession, $roomTid);
+check('room rendered output', strlen($roomHtml) > 5000, 'bytes=' . strlen($roomHtml));
+check('room has no PHP error/warning', stripos($roomHtml, 'Fatal error') === false && stripos($roomHtml, 'Warning:') === false, substr($roomHtml, 0, 400));
+check('room access granted for the agent owner', stripos($roomHtml, 'do not have access') === false, substr($roomHtml, 0, 300));
+check('room shows the tournament title', strpos($roomHtml, '[QA] Smoke Room') !== false);
+check('room chat form rendered', strpos($roomHtml, 'trTextChatForm') !== false);
+check('room uses the chat handler', strpos($roomHtml, 'send_tournament_chat') !== false);
+$db->prepare("DELETE FROM tournaments WHERE id = ?")->execute([$roomTid]);
+check('room fixture removed', (int) $db->query("SELECT COUNT(*) FROM tournaments WHERE title = '[QA] Smoke Room'")->fetchColumn() === 0);
 
 echo "\n== RENDER AS GUEST ==\n";
 $guestHtml = render([]);

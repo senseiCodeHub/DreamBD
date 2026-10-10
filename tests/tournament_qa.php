@@ -328,6 +328,20 @@ ck('member removed', (int) col($db, "SELECT COUNT(*) FROM team_members WHERE tea
 ck('getUserTeams lists it', count(getUserTeams($db, $p3)) >= 1);
 ck('getTeamMembers works', count(getTeamMembers($db, $teamId)) === 1);
 
+sec('DELETE TEAM (must not touch unrelated solo matches)');
+// A team id can collide with an unrelated solo player's user id: insert both kinds of
+// slot referencing the same id and make sure only the team slot is removed.
+q($db, "INSERT INTO tournament_matches (tournament_id, stage, round, match_no, team1_id, team1_kind, team2_id, team2_kind, status) VALUES (?, 'single', 99, 991, ?, 'user', ?, 'user', 'scheduled')", [$tid1, $teamId, $p4]);
+q($db, "INSERT INTO tournament_matches (tournament_id, stage, round, match_no, team1_id, team1_kind, team2_id, team2_kind, status) VALUES (?, 'single', 99, 992, ?, 'team', ?, 'user', 'scheduled')", [$tid1, $teamId, $p4]);
+$soloRowsBefore = (int) col($db, "SELECT COUNT(*) FROM tournament_matches WHERE tournament_id = ?", [$tid1]);
+toggle('captain deletes the team', deleteTeam($db, $teamId, $p3), true);
+ck('team row gone', (int) col($db, "SELECT COUNT(*) FROM teams WHERE id = ?", [$teamId]) === 0);
+ck('team-slot match removed', (int) col($db, "SELECT COUNT(*) FROM tournament_matches WHERE tournament_id = ? AND match_no = 992", [$tid1]) === 0);
+ck('id-colliding solo match survived', (int) col($db, "SELECT COUNT(*) FROM tournament_matches WHERE tournament_id = ? AND match_no = 991", [$tid1]) === 1);
+$completedRows = (int) col($db, "SELECT COUNT(*) FROM tournament_matches WHERE tournament_id = ? AND status = 'completed'", [$tid1]);
+ck('the completed bracket was not destroyed', $completedRows >= 3, "completed=$completedRows before=$soloRowsBefore");
+toggle('non-captain cannot delete the team', deleteTeam($db, $teamId, $p4), false);
+
 sec('CLUB');
 $clubRes = createClub($db, $p1, '[QA] Nova', 'QAN', '#38bdf8', 'QA club', 'Dhaka');
 $clubId = (int) ($clubRes['club_id'] ?? 0);

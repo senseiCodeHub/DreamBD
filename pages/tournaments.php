@@ -1658,7 +1658,7 @@ if ($viewerId) {
             <?php if (!$viewerId): ?>
             <div class="pm-empty"><i class="fas fa-lock"></i><p>Log in to manage your squad.</p></div>
             <?php elseif (empty($myPlayers)): ?>
-            <div class="pm-empty"><i class="fas fa-user-plus"></i><p>You don't own a player card yet. Sign a free agent from the market or win an auction.</p></div>
+            <div class="pm-empty"><i class="fas fa-user-plus"></i><p>No players to manage yet — sign a free agent from the market or win an auction.</p></div>
             <?php else: ?>
             <div class="pm-grid">
                 <?php foreach ($myPlayers as $mp): ?>

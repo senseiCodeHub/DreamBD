@@ -2625,7 +2625,9 @@ function deleteTeam(PDO $pdo, int $teamId, int $userId): array {
         $pdo->beginTransaction();
         $pdo->prepare("DELETE FROM team_members WHERE team_id = ?")->execute([$teamId]);
         $pdo->prepare("DELETE FROM tournament_participants WHERE team_id = ?")->execute([$teamId]);
-        $pdo->prepare("DELETE FROM tournament_matches WHERE team1_id = ? OR team2_id = ?")->execute([$teamId, $teamId]);
+        // Scope to team slots only — a team id can collide with an unrelated solo user id.
+        $pdo->prepare("DELETE FROM tournament_matches WHERE (team1_id = ? AND team1_kind = 'team') OR (team2_id = ? AND team2_kind = 'team')")
+            ->execute([$teamId, $teamId]);
         $pdo->prepare("DELETE FROM tournament_results WHERE team_id = ?")->execute([$teamId]);
         $pdo->prepare("DELETE FROM teams WHERE id = ?")->execute([$teamId]);
         $pdo->commit();
@@ -2650,6 +2652,11 @@ function joinTournamentWithTeam(PDO $pdo, int $teamId, int $tournamentId, int $u
         $stmt = $pdo->prepare("SELECT id FROM tournament_participants WHERE tournament_id = ? AND team_id = ? AND status = 'confirmed'");
         $stmt->execute([$tournamentId, $teamId]);
         if ($stmt->fetch()) return ['success' => false, 'message' => 'Team already registered.'];
+
+        // One registration per user — solo or with a team.
+        $userStmt = $pdo->prepare("SELECT id FROM tournament_participants WHERE tournament_id = ? AND user_id = ? AND status = 'confirmed'");
+        $userStmt->execute([$tournamentId, $userId]);
+        if ($userStmt->fetch()) return ['success' => false, 'message' => 'You are already registered for this tournament.'];
 
         // Everything below takes row locks and moves money — it must run in a transaction.
         $pdo->beginTransaction();
@@ -2935,6 +2942,12 @@ function listPlayerForAuction(PDO $pdo, int $userId, int $playerId, float $baseP
     $player = $stmt->fetch();
     if (!$player) return ['success' => false, 'message' => 'Player not found.'];
     if ((int)$player['owner_id'] !== $userId) return ['success' => false, 'message' => 'Not your player.'];
+    if ($basePrice <= 0) return ['success' => false, 'message' => 'Base price must be greater than zero.'];
+
+    // One live auction per player — otherwise the same card can be sold twice.
+    $dupStmt = $pdo->prepare("SELECT id FROM player_auctions WHERE player_id = ? AND status = 'active' LIMIT 1");
+    $dupStmt->execute([$playerId]);
+    if ($dupStmt->fetch()) return ['success' => false, 'message' => 'This player is already up for auction.'];
 
     $endTime = date('Y-m-d H:i:s', time() + $durationHours * 3600);
     try {
@@ -2958,6 +2971,9 @@ function placeBid(PDO $pdo, int $auctionId, int $bidderId, float $amount): array
             { $pdo->rollBack(); return ['success' => false, 'message' => 'Auction not active.']; }
         if (time() > strtotime($auction['end_time']))
             { $pdo->rollBack(); return ['success' => false, 'message' => 'Auction ended.']; }
+        // No shill bidding: the seller cannot bid on their own auction.
+        if ((int) $auction['seller_id'] === (int) $bidderId)
+            { $pdo->rollBack(); return ['success' => false, 'message' => 'You cannot bid on your own auction.']; }
         if ($amount < $auction['current_price'] + $auction['min_increment'])
             { $pdo->rollBack(); return ['success' => false, 'message' => 'Bid too low. Min: ৳' . number_format($auction['current_price'] + $auction['min_increment'], 0) . '']; }
 
@@ -2987,6 +3003,10 @@ function buyPlayerDirect(PDO $pdo, int $playerId, int $buyerId, float $price): a
         $player = $stmt->fetch();
         if (!$player || $player['status'] !== 'free_agent')
             { $pdo->rollBack(); return ['success' => false, 'message' => 'Player not available.']; }
+
+        // Never let somebody "buy" their own card — it would destroy money.
+        if ((int) $player['user_id'] === (int) $buyerId || (!empty($player['owner_id']) && (int) $player['owner_id'] === (int) $buyerId))
+            { $pdo->rollBack(); return ['success' => false, 'message' => 'You cannot buy your own player.']; }
 
         $balStmt = $pdo->prepare("SELECT balance FROM users WHERE id = ? FOR UPDATE");
         $balStmt->execute([$buyerId]);
@@ -3039,6 +3059,11 @@ function releasePlayer(PDO $pdo, int $playerId, int $ownerId): array {
     $player = $stmt->fetch();
     if (!$player || (int)$player['owner_id'] !== $ownerId) return ['success' => false, 'message' => 'Not your player.'];
 
+    // Selling a player who is on the block would double-sell them.
+    $activeAuction = $pdo->prepare("SELECT id FROM player_auctions WHERE player_id = ? AND status = 'active' LIMIT 1");
+    $activeAuction->execute([$playerId]);
+    if ($activeAuction->fetch()) return ['success' => false, 'message' => 'This player is up for auction right now — let the auction finish first.'];
+
     try {
         $fromClubId = $player['current_club_id'];
         $stmt = $pdo->prepare("UPDATE players SET owner_id = NULL, current_club_id = NULL, status = 'free_agent' WHERE id = ?");
@@ -3065,6 +3090,11 @@ function hirePlayerToClub(PDO $pdo, int $playerId, int $clubId, int $managerId):
         $stmt->execute([$playerId]);
         $player = $stmt->fetch();
         if (!$player) { $pdo->rollBack(); return ['success' => false, 'message' => 'Player not found.']; }
+
+        // A player on the auction block cannot be hired underneath the auction.
+        $activeAuction = $pdo->prepare("SELECT id FROM player_auctions WHERE player_id = ? AND status = 'active' LIMIT 1");
+        $activeAuction->execute([$playerId]);
+        if ($activeAuction->fetch()) { $pdo->rollBack(); return ['success' => false, 'message' => 'This player is up for auction right now — let the auction finish first.']; }
 
         // Check if player already in club as member
         $stmt = $pdo->prepare("SELECT id FROM club_members WHERE club_id = ? AND user_id = ?");
@@ -3189,7 +3219,7 @@ function ensurePlayerProfile(PDO $pdo, int $userId): int {
     }
 }
 
-/** Players the user currently owns (bought at auction or direct) — the squad they manage. */
+/** Players the user controls — their squad, plus their own card (free agent) so they can price it. */
 function getMyPlayers(PDO $pdo, int $ownerId, int $limit = 50): array {
     $stmt = $pdo->prepare("SELECT p.*, u.username, u.full_name, u.avatar, u.nickname, c.name AS club_name, c.tag AS club_tag, c.colour AS club_colour,
         COALESCE((SELECT COUNT(*) FROM player_auctions WHERE player_id = p.id AND status = 'active'), 0) AS has_active_auction,
@@ -3197,8 +3227,8 @@ function getMyPlayers(PDO $pdo, int $ownerId, int $limit = 50): array {
         FROM players p
         JOIN users u ON u.id = p.user_id
         LEFT JOIN clubs c ON c.id = p.current_club_id
-        WHERE p.owner_id = ? ORDER BY p.market_value DESC, p.id DESC LIMIT ?");
-    $stmt->execute([$ownerId, $limit]);
+        WHERE p.owner_id = ? OR p.user_id = ? ORDER BY p.market_value DESC, p.id DESC LIMIT ?");
+    $stmt->execute([$ownerId, $ownerId, $limit]);
     return $stmt->fetchAll();
 }
 
